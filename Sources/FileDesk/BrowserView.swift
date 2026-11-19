@@ -578,6 +578,13 @@ struct BrowserView: View {
                 Text(status).lineLimit(1)
             }
             Spacer(minLength: 8)
+            let archive = count == 1 ? model.selectedItems.first : nil
+            Button("解压", systemImage: "archivebox") {
+                if let archive { model.perform(.extract(archive.url)) }
+            }
+            .buttonStyle(.borderless)
+            .help("将选中的压缩包解压到同一目录")
+            .disabled(archive?.isArchive != true || model.isWorking || browserDialogPresented)
             ToolButton(title: "移到废纸篓…", symbol: "trash") { trashItems = model.selectedItems }
                 .keyboardShortcut(.delete, modifiers: .command)
                 .disabled(model.selection.isEmpty || model.isWorking || searchFocused ||

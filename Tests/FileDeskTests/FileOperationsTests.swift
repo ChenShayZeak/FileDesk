@@ -6,6 +6,35 @@ final class FileOperationsTests: XCTestCase {
     private let fs = FileSystem()
     private let sessions = EncryptedFileSessions()
 
+    func testQuickExtractUnpacksZipAndTarGzWithoutOverwriting() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixtures = [
+            ("zip", "UEsDBBQAAAAAAK9oc111JIE9DgAAAA4AAAAOAAAAZG9jcy9oZWxsby50eHRGaWxlRGVzayB0ZXN0ClBLAQIUAxQAAAAAAK9oc111JIE9DgAAAA4AAAAOAAAAAAAAAAAAAACAAQAAAABkb2NzL2hlbGxvLnR4dFBLBQYAAAAAAQABADwAAAA6AAAAAAA="),
+            ("tar.gz", "H4sIAJuD/moC/+3NQQrCMAAEwJx9RV+gKda+QPyH2IBioGAi+HyjF8G7gjhz2WUvO82HsjqmnOdlvdXwEbEZh+GZzXvG2I+v/tj7uFmPoYvhC66l7i/tPvyn3SmnbSrnrqZSFwEAAAAAAAAAAIAfcQea5YF3ACgAAA==")
+        ]
+        for (index, fixture) in fixtures.enumerated() {
+            var archive = directory.appendingPathComponent("测试 包." + fixture.0)
+            let payload = try XCTUnwrap(Data(base64Encoded: fixture.1))
+            try payload.write(to: archive)
+            var flags = URLResourceValues()
+            flags.quarantineProperties = ["LSQuarantineType": "LSQuarantineTypeWebDownload"]
+            try archive.setResourceValues(flags)
+            let result = await fs.perform(.extract(archive))
+            let name = index == 0 ? "测试 包" : "测试 包 2"
+            XCTAssertEqual(result.outputName, name, result.failures.joined())
+            let extracted = directory.appendingPathComponent(name + "/docs/hello.txt")
+            XCTAssertEqual(try String(contentsOf: extracted), "FileDesk test\n")
+            XCTAssertNotNil(try extracted.resourceValues(forKeys: [.quarantinePropertiesKey]).quarantineProperties)
+            XCTAssertEqual(try Data(contentsOf: archive), payload)
+        }
+        let broken = directory.appendingPathComponent("损坏.zip")
+        try Data("invalid".utf8).write(to: broken)
+        let failed = await fs.perform(.extract(broken))
+        XCTAssertFalse(failed.failures.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("损坏").path))
+    }
+
     @MainActor
     func testHiddenItemsAreShownByDefaultAndRememberUserChoice() throws {
         let suite = UUID().uuidString

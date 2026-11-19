@@ -15,15 +15,16 @@ struct FileItem: Identifiable, Sendable {
 
     var id: URL { url }
     var isEncrypted: Bool { isRegularFile && fileExtension == CipherMode.fileExtension }
+    var isArchive: Bool { isRegularFile && ArchiveExtractor.extensions.contains(fileExtension) }
 
     var symbol: String {
         if isFolder { return "folder.fill" }
         if isEncrypted { return "lock.doc" }
+        if isArchive { return "archivebox" }
         switch fileExtension {
         case "png", "jpg", "jpeg", "heic", "gif", "webp", "svg", "tiff": return "photo"
         case "mp4", "mov", "mkv", "avi": return "film"
         case "mp3", "wav", "m4a", "flac", "aiff": return "music.note"
-        case "zip", "rar", "7z", "gz", "tar": return "archivebox"
         case "swift", "json", "js", "ts", "html", "css", "py", "sh": return "chevron.left.forwardslash.chevron.right"
         case "pdf", "doc", "docx", "txt", "md", "rtf": return "doc.text"
         default: return "doc"
@@ -69,6 +70,7 @@ enum FileOperation: Sendable {
     case trash(sources: [URL])
     case setTags(folder: URL, tags: [String])
     case encrypt(source: URL, password: String)
+    case extract(URL)
     case trashEncryptedOriginal(EncryptedCopy)
 
     var completion: String {
@@ -80,6 +82,7 @@ enum FileOperation: Sendable {
         case .trash, .trashEncryptedOriginal: "已移到废纸篓"
         case .setTags: "已更新文件夹标签"
         case .encrypt: "已生成加密副本"
+        case .extract: "已解压到"
         }
     }
 }
@@ -104,6 +107,7 @@ private enum FileOperationError: LocalizedError {
     case sameFolder
     case destinationExists(String)
     case encryptionFilesChanged
+    case unsupportedArchive
 
     var errorDescription: String? {
         switch self {
@@ -112,6 +116,7 @@ private enum FileOperationError: LocalizedError {
         case .sameFolder: "文件已在该文件夹中。"
         case .destinationExists(let name): "目标位置已有同名项目「\(name)」。"
         case .encryptionFilesChanged: "原文件或加密副本已变化或无法读取，已取消移到废纸篓。"
+        case .unsupportedArchive: "请选择支持的压缩文件。"
         }
     }
 }
@@ -212,6 +217,20 @@ actor FileSystem {
                 let values = try currentFolder.resourceValues(forKeys: [.isDirectoryKey])
                 guard values.isDirectory == true else { throw CocoaError(.fileReadUnknown) }
                 try (currentFolder as NSURL).setResourceValue(tags, forKey: .tagNamesKey)
+            }
+        case .extract(let source):
+            attempt(source.lastPathComponent) {
+                guard Self.item(at: source).isArchive else { throw FileOperationError.unsupportedArchive }
+                let parent = source.deletingLastPathComponent()
+                let name = ArchiveExtractor.folderName(for: source)
+                var target = parent.appendingPathComponent(name, isDirectory: true)
+                var suffix = 2
+                while entryExists(target) {
+                    target = parent.appendingPathComponent("\(name) \(suffix)", isDirectory: true)
+                    suffix += 1
+                }
+                try withStagedOutput(target) { try ArchiveExtractor.extract(source, into: $0) }
+                result.outputName = target.lastPathComponent
             }
         case .encrypt(let source, let password):
             attempt(source.lastPathComponent) {
