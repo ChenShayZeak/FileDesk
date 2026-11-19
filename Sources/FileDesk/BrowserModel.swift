@@ -32,6 +32,9 @@ final class BrowserModel {
     private var allItems: [FileItem] = []
 
     private(set) var directory: URL
+    private(set) var recentPaths: [String] {
+        didSet { preferences.set(recentPaths, forKey: "recentPaths") }
+    }
     private(set) var items: [FileItem] = []
     private(set) var customFavorites: [Favorite] = []
     private(set) var isLoading = false
@@ -67,6 +70,7 @@ final class BrowserModel {
         let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
         self.home = home
         directory = home
+        recentPaths = preferences.stringArray(forKey: "recentPaths") ?? []
         showHidden = preferences.object(forKey: "showHidden") as? Bool ?? true
         history = [home]
         sort = preferences.string(forKey: "sort").flatMap(FileSort.init(rawValue:)) ?? .name
@@ -127,7 +131,15 @@ final class BrowserModel {
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
               isDirectory.boolValue else { return false }
         navigate(to: url)
+        let visited = directory.path
+        if recentPaths.first != visited {
+            recentPaths = [visited] + recentPaths.filter { $0 != visited }
+        }
         return true
+    }
+
+    func removeRecentPath(_ path: String) {
+        recentPaths.removeAll { $0 == path }
     }
 
     func openExternalURL(_ url: URL, decrypt: (FileItem) -> Void) {

@@ -7,6 +7,7 @@ struct BrowserView: View {
     let model: BrowserModel
     @AppStorage("showInspector") private var showInspector = true
     @AppStorage("gridLayout") private var gridLayout = false
+    @AppStorage("showPathHistory") private var showPathHistory = false
     @FocusState private var searchFocused: Bool
     @State private var prompt: BrowserPrompt?
     @State private var trashItems: [FileItem] = []
@@ -35,6 +36,10 @@ struct BrowserView: View {
                     }
                 }
                 Divider()
+                if showPathHistory {
+                    pathHistory
+                    Divider()
+                }
                 statusBar
             }
             .background(.background)
@@ -323,6 +328,9 @@ struct BrowserView: View {
             ToolButton(title: showInspector ? "隐藏详细信息" : "显示详细信息", symbol: "sidebar.right", active: showInspector) {
                 showInspector.toggle()
             }
+            ToolButton(title: showPathHistory ? "隐藏历史路径" : "显示历史路径", symbol: "rectangle.bottomthird.inset.filled", active: showPathHistory) {
+                showPathHistory.toggle()
+            }
         }
         .padding(.horizontal, 15)
         .frame(height: 62)
@@ -570,6 +578,49 @@ struct BrowserView: View {
         prompt != nil || !trashItems.isEmpty || model.notice != nil
     }
 
+    private var pathHistory: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("历史路径")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
+            if model.recentPaths.isEmpty {
+                Text("通过 ⌘⇧G 前往的文件夹会显示在这里。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(model.recentPaths, id: \.self) { path in
+                            HStack(spacing: 6) {
+                                Button {
+                                    if !model.goToFolder(path) {
+                                        model.notice = FileNotice(title: "无法前往文件夹", message: path)
+                                    }
+                                } label: {
+                                    Label(path, systemImage: "folder")
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .help(path)
+                                ToolButton(title: "移除历史记录 \(path)", symbol: "xmark") {
+                                    model.removeRecentPath(path)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(height: CGFloat(min(model.recentPaths.count, 4)) * 28)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 8)
+    }
+
     private var statusBar: some View {
         HStack(spacing: 10) {
             let count = model.selection.count
@@ -582,13 +633,9 @@ struct BrowserView: View {
             }
             Spacer(minLength: 8)
             let archive = count == 1 ? model.selectedItems.first : nil
-            Button("解压", systemImage: "archivebox") {
+            ToolButton(title: "解压", symbol: "archivebox") {
                 if let archive { model.perform(.extract(archive.url)) }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.black)
-            .foregroundStyle(.white)
-            .controlSize(.small)
             .keyboardShortcut("e", modifiers: [.command, .shift])
             .help("解压到同一目录（⌘⇧E）")
             .disabled(archive?.isArchive != true || model.isWorking || browserDialogPresented || model.preview != nil)

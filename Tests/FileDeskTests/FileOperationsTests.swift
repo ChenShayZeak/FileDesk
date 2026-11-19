@@ -91,7 +91,10 @@ final class FileOperationsTests: XCTestCase {
         let child = parent.appendingPathComponent("子 目录", isDirectory: true)
         try FileManager.default.createDirectory(at: child, withIntermediateDirectories: false)
         try Data().write(to: child.appendingPathComponent("文件"))
-        let model = BrowserModel()
+        let suite = UUID().uuidString
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = BrowserModel(preferences: preferences)
         XCTAssertTrue(model.goToFolder(parent.path))
         XCTAssertTrue(model.goToFolder("子 目录"))
         XCTAssertEqual(model.directory, child.standardizedFileURL)
@@ -99,8 +102,19 @@ final class FileOperationsTests: XCTestCase {
             XCTAssertFalse(model.goToFolder(input))
             XCTAssertEqual(model.directory, child.standardizedFileURL)
         }
+        let childPath = child.standardizedFileURL.path
+        let parentPath = parent.standardizedFileURL.path
+        XCTAssertEqual(model.recentPaths, [childPath, parentPath])
         model.goBack()
         XCTAssertEqual(model.directory, parent.standardizedFileURL)
+        XCTAssertTrue(model.goToFolder("."))
+        XCTAssertEqual(model.recentPaths, [parentPath, childPath])
+        XCTAssertEqual(BrowserModel(preferences: preferences).recentPaths, [parentPath, childPath])
+        model.removeRecentPath(parentPath)
+        XCTAssertEqual(BrowserModel(preferences: preferences).recentPaths, [childPath])
+        XCTAssertEqual(model.directory.path, parentPath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: parentPath))
+        XCTAssertTrue(model.canGoForward)
         XCTAssertTrue(model.goToFolder("~"))
         XCTAssertEqual(model.directory, FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL)
     }
