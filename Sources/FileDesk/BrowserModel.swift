@@ -166,10 +166,9 @@ final class BrowserModel {
             workingMessage = "正在处理文件…"
         }
         let updater = AppUpdater()
-        let app = Bundle.main.bundleURL
         let alert = NSAlert()
         do {
-            let current = try AppUpdater.installedVersion(at: app)
+            let (app, current) = try AppUpdater.installedApp(launchedFrom: Bundle.main.bundleURL)
             if let release = try await updater.latest() {
                 if release.version.compare(current, options: .numeric) == .orderedDescending {
                     let confirm = NSAlert()

@@ -32,12 +32,24 @@ actor AppUpdater {
         return AppRelease.latest(in: refs)
     }
 
+    static func installedApp(launchedFrom app: URL) throws -> (url: URL, version: String) {
+        let manager = FileManager.default
+        var url = app
+        if app.lastPathComponent == "文件桌.app", !manager.fileExists(atPath: app.path) {
+            url = app.deletingLastPathComponent().appendingPathComponent("FileDesktop.app", isDirectory: true)
+        }
+        guard url.pathExtension == "app", manager.fileExists(atPath: url.appending(path: "Contents/Info.plist").path) else {
+            throw UpdateError("找不到正在运行的文件桌应用包。请退出文件桌，从「应用程序」重新打开后再检查更新。")
+        }
+        return (url, try installedVersion(at: url))
+    }
+
     static func installedVersion(at app: URL) throws -> String {
         let data = try Data(contentsOf: app.appending(path: "Contents/Info.plist"))
         let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         guard info?["CFBundleIdentifier"] as? String == "local.filedesk.app",
               let version = info?["CFBundleShortVersionString"] as? String else {
-            throw UpdateError("请从「文件桌.app」启动后检查更新。")
+            throw UpdateError("应用包中的文件桌标识或版本信息无效，请从「应用程序」重新打开文件桌。")
         }
         return version
     }
