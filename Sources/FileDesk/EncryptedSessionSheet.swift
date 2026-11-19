@@ -73,7 +73,7 @@ private struct DocumentPreview: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let preview: QLPreviewView? = QLPreviewView(frame: .zero, style: .normal)
         guard let preview else {
-            return NSTextField(labelWithString: "无法预览此文件。可用默认应用打开。")
+            return NSTextField(labelWithString: String(localized: "无法预览此文件。可用默认应用打开。"))
         }
         preview.previewItem = file as NSURL
         return preview

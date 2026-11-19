@@ -1,2 +1,9 @@
 "CFBundleName" = "文件桌";
 "CFBundleDisplayName" = "文件桌";
+"文件夹" = "文件夹";
+"文件桌加密文件" = "文件桌加密文件";
+"NSDesktopFolderUsageDescription" = "用于浏览和管理你在桌面上的文件。";
+"NSDocumentsFolderUsageDescription" = "用于浏览和管理你在文稿文件夹中的文件。";
+"NSDownloadsFolderUsageDescription" = "用于浏览和管理你在下载文件夹中的文件。";
+"NSNetworkVolumesUsageDescription" = "用于访问你选择浏览的网络卷。";
+"NSRemovableVolumesUsageDescription" = "用于访问你选择浏览的外接存储设备。";

@@ -67,9 +67,9 @@ struct SevenZip: Sendable {
         case download, checksum, unpack
         var errorDescription: String? {
             switch self {
-            case .download: "7-Zip 官方安装包下载失败，请检查网络并重试。"
-            case .checksum: "7-Zip 安装包校验失败，请重新下载。"
-            case .unpack: "无法从安装包中安装 7zz，请重试。"
+            case .download: String(localized: "7-Zip 官方安装包下载失败，请检查网络并重试。")
+            case .checksum: String(localized: "7-Zip 安装包校验失败，请重新下载。")
+            case .unpack: String(localized: "无法从安装包中安装 7zz，请重试。")
             }
         }
     }

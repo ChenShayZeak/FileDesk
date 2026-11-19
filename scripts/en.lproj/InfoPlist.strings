@@ -1,2 +1,9 @@
 "CFBundleName" = "FileDesktop";
 "CFBundleDisplayName" = "FileDesktop";
+"文件夹" = "Folder";
+"文件桌加密文件" = "FileDesktop Encrypted File";
+"NSDesktopFolderUsageDescription" = "Browse and manage the files on your Desktop.";
+"NSDocumentsFolderUsageDescription" = "Browse and manage the files in Documents.";
+"NSDownloadsFolderUsageDescription" = "Browse and manage the files in Downloads.";
+"NSNetworkVolumesUsageDescription" = "Open the network folders you select.";
+"NSRemovableVolumesUsageDescription" = "Open the folders you select on external storage.";

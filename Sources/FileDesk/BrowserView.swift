@@ -17,14 +17,18 @@ struct BrowserView: View {
 
         HStack(spacing: 0) {
             sidebar
-                .frame(width: 196)
-            Divider()
+                .frame(width: 182)
+                .browserGlass(cornerRadius: 18)
+                .padding(8)
             VStack(spacing: 0) {
                 toolbar
-                Divider()
+                    .browserGlass(cornerRadius: 18)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
                 HStack(spacing: 0) {
                     filePane
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(.background)
                     if showInspector {
                         Divider()
                         FileInspector(
@@ -42,12 +46,17 @@ struct BrowserView: View {
                 }
                 statusBar
             }
-            .background(.background)
+        }
+        .background {
+            LinearGradient(colors: [BrowserColors.accent.opacity(0.09), .clear],
+                           startPoint: .topLeading, endPoint: .center)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .ignoresSafeArea()
         }
         .tint(BrowserColors.accent)
         .onOpenURL { url in
             guard prompt == nil, trashItems.isEmpty, model.session == nil, !model.isWorking else {
-                model.notice = FileNotice(title: "暂时无法打开项目", message: "请先完成当前操作，然后重新打开「\(url.lastPathComponent)」。")
+                model.notice = FileNotice(title: String(localized: "暂时无法打开项目"), message: String(localized: "请先完成当前操作，然后重新打开「\(url.lastPathComponent)」。"))
                 return
             }
             model.openExternalURL(url, decrypt: crypt)
@@ -94,7 +103,7 @@ struct BrowserView: View {
             if previous != nil && current == nil { prompt = nil }
         }
         .alert(
-            model.notice?.title ?? "提示",
+            model.notice?.title ?? String(localized: "提示"),
             isPresented: Binding(
                 get: { model.notice != nil },
                 set: { if !$0 { model.notice = nil } }
@@ -129,7 +138,7 @@ struct BrowserView: View {
                 model.perform(.trash(sources: items.map(\.url)))
             }
         } message: { items in
-            Text(items.count == 1 ? items[0].name : "已选择 \(items.count) 个项目。")
+            Text(items.count == 1 ? items[0].name : String(localized: "已选择 \(items.count) 个项目。"))
         }
     }
 
@@ -151,13 +160,13 @@ struct BrowserView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
-                    sidebarLabel("常用位置")
+                    sidebarLabel(String(localized: "常用位置"))
                     ForEach(model.standardFavorites) { favorite in
                         favoriteButton(favorite)
                     }
 
                     if !model.customFavorites.isEmpty {
-                        sidebarLabel("我的收藏")
+                        sidebarLabel(String(localized: "我的收藏"))
                             .padding(.top, 19)
                         ForEach(model.customFavorites) { favorite in
                             favoriteButton(favorite)
@@ -167,7 +176,6 @@ struct BrowserView: View {
                 .padding(.horizontal, 10)
             }
         }
-        .background(BrowserColors.sidebar)
     }
 
     private func sidebarLabel(_ title: String) -> some View {
@@ -210,15 +218,15 @@ struct BrowserView: View {
 
         return HStack(spacing: 9) {
             HStack(spacing: 1) {
-                ToolButton(title: "后退", symbol: "chevron.left", action: model.goBack)
+                ToolButton(title: String(localized: "后退"), symbol: "chevron.left", action: model.goBack)
                     .keyboardShortcut("[", modifiers: .command)
                     .disabled(!model.canGoBack)
-                ToolButton(title: "前进", symbol: "chevron.right", action: model.goForward)
+                ToolButton(title: String(localized: "前进"), symbol: "chevron.right", action: model.goForward)
                     .keyboardShortcut("]", modifiers: .command)
                     .disabled(!model.canGoForward)
-                ToolButton(title: "上一级", symbol: "arrow.up", action: model.goUp)
+                ToolButton(title: String(localized: "上一级"), symbol: "arrow.up", action: model.goUp)
                     .disabled(!model.canGoUp)
-                ToolButton(title: "前往文件夹…", symbol: "arrow.turn.down.right") {
+                ToolButton(title: String(localized: "前往文件夹…"), symbol: "arrow.turn.down.right") {
                     prompt = BrowserPrompt(content: .goToFolder)
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
@@ -263,20 +271,20 @@ struct BrowserView: View {
             .frame(height: 32)
             .background(BrowserColors.control, in: RoundedRectangle(cornerRadius: 8))
 
-            ToolButton(title: "复制路径", symbol: "link") {
+            ToolButton(title: String(localized: "复制路径"), symbol: "link") {
                 model.copyPaths(model.selectedItems.map(\.url))
             }
             .keyboardShortcut("c", modifiers: [.command, .option])
             .disabled(model.selection.isEmpty)
 
-            ToolButton(title: "新建文件夹", symbol: "folder.badge.plus", action: createFolder)
+            ToolButton(title: String(localized: "新建文件夹"), symbol: "folder.badge.plus", action: createFolder)
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(model.isWorking || model.readError != nil)
 
             Menu {
                 Picker("排序方式", selection: $model.sort) {
                     ForEach(FileSort.allCases) { sort in
-                        Text(sort.rawValue).tag(sort)
+                        Text(LocalizedStringKey(sort.rawValue)).tag(sort)
                     }
                 }
                 Toggle("显示隐藏文件", isOn: $model.showHidden)
@@ -313,15 +321,15 @@ struct BrowserView: View {
             .help("排序与更多操作")
             .accessibilityLabel("排序与更多操作")
 
-            ToolButton(title: showInspector ? "隐藏详细信息" : "显示详细信息", symbol: "sidebar.right", active: showInspector) {
+            ToolButton(title: showInspector ? String(localized: "隐藏详细信息") : String(localized: "显示详细信息"), symbol: "sidebar.right", active: showInspector) {
                 showInspector.toggle()
             }
-            ToolButton(title: showPathHistory ? "隐藏历史路径" : "显示历史路径", symbol: "rectangle.bottomthird.inset.filled", active: showPathHistory) {
+            ToolButton(title: showPathHistory ? String(localized: "隐藏历史路径") : String(localized: "显示历史路径"), symbol: "rectangle.bottomthird.inset.filled", active: showPathHistory) {
                 showPathHistory.toggle()
             }
         }
         .padding(.horizontal, 15)
-        .frame(height: 62)
+        .frame(height: 44)
     }
 
     private var filePane: some View {
@@ -337,7 +345,7 @@ struct BrowserView: View {
                         .help(model.directory.path)
                     if model.canFavorite {
                         ToolButton(
-                            title: model.isFavorite ? "移除收藏" : "收藏当前文件夹",
+                            title: model.isFavorite ? String(localized: "移除收藏") : String(localized: "收藏当前文件夹"),
                             symbol: model.isFavorite ? "star.fill" : "star",
                             active: model.isFavorite,
                             action: model.toggleFavorite
@@ -346,15 +354,15 @@ struct BrowserView: View {
                     }
                     Spacer(minLength: 8)
                     HStack(spacing: 1) {
-                        ToolButton(title: "列表视图", symbol: "list.bullet", active: !gridLayout) {
+                        ToolButton(title: String(localized: "列表视图"), symbol: "list.bullet", active: !gridLayout) {
                             gridLayout = false
                         }
-                        ToolButton(title: "网格视图", symbol: "square.grid.2x2", active: gridLayout) {
+                        ToolButton(title: String(localized: "网格视图"), symbol: "square.grid.2x2", active: gridLayout) {
                             gridLayout = true
                         }
                     }
                     .padding(2)
-                    .background(BrowserColors.control, in: RoundedRectangle(cornerRadius: 8))
+                    .browserGlass(cornerRadius: 10)
                 }
             }
             .padding(.horizontal, 20)
@@ -362,7 +370,7 @@ struct BrowserView: View {
             .padding(.bottom, 17)
 
             if let error = model.readError {
-                emptyState(symbol: "exclamationmark.folder", title: "无法读取文件夹", detail: error) {
+                emptyState(symbol: "exclamationmark.folder", title: String(localized: "无法读取文件夹"), detail: error) {
                     Button("重新加载", action: model.refresh)
                 }
             } else if model.isLoading && model.items.isEmpty {
@@ -371,12 +379,12 @@ struct BrowserView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.items.isEmpty {
                 if model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    emptyState(symbol: "folder", title: "文件夹为空", detail: "这里还没有可见的文件。") {
+                    emptyState(symbol: "folder", title: String(localized: "文件夹为空"), detail: String(localized: "这里还没有可见的文件。")) {
                         Button("新建文件夹", action: createFolder)
                             .disabled(model.isWorking)
                     }
                 } else {
-                    emptyState(symbol: "magnifyingglass", title: "没有匹配的文件", detail: "试试其他文件名或标签。") {
+                    emptyState(symbol: "magnifyingglass", title: String(localized: "没有匹配的文件"), detail: String(localized: "试试其他文件名或标签。")) {
                         Button("清除搜索") { model.query = "" }
                     }
                 }
@@ -585,7 +593,7 @@ struct BrowserView: View {
                             HStack(spacing: 6) {
                                 Button {
                                     if !model.goToFolder(path) {
-                                        model.notice = FileNotice(title: "无法前往文件夹", message: path)
+                                        model.notice = FileNotice(title: String(localized: "无法前往文件夹"), message: path)
                                     }
                                 } label: {
                                     Label(path, systemImage: "folder")
@@ -596,7 +604,7 @@ struct BrowserView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help(path)
-                                ToolButton(title: "移除历史记录 \(path)", symbol: "xmark") {
+                                ToolButton(title: String(localized: "移除历史记录 \(path)"), symbol: "xmark") {
                                     model.removeRecentPath(path)
                                 }
                             }
@@ -614,7 +622,7 @@ struct BrowserView: View {
     private var statusBar: some View {
         HStack(spacing: 10) {
             let count = model.selection.count
-            Text(count == 0 ? "\(model.items.count) 个项目" : "已选中 \(count) 个项目")
+            Text(count == 0 ? String(localized: "\(model.items.count) 个项目") : String(localized: "已选中 \(count) 个项目"))
             if model.isWorking {
                 ProgressView().controlSize(.mini)
                 Text(model.workingMessage)
@@ -623,13 +631,13 @@ struct BrowserView: View {
             }
             Spacer(minLength: 8)
             let archive = count == 1 ? model.selectedItems.first : nil
-            ToolButton(title: "解压", symbol: "archivebox") {
+            ToolButton(title: String(localized: "解压"), symbol: "archivebox") {
                 if let archive { model.perform(.extract(archive.url)) }
             }
             .keyboardShortcut("e", modifiers: [.command, .shift])
             .help("解压到同一目录（⌘⇧E）")
             .disabled(archive?.isArchive != true || model.isWorking || browserDialogPresented || model.preview != nil)
-            ToolButton(title: "移到废纸篓…", symbol: "trash") { trashItems = model.selectedItems }
+            ToolButton(title: String(localized: "移到废纸篓…"), symbol: "trash") { trashItems = model.selectedItems }
                 .keyboardShortcut(.delete, modifiers: .command)
                 .disabled(model.selection.isEmpty || model.isWorking || searchFocused ||
                           browserDialogPresented || model.preview != nil)
@@ -689,7 +697,7 @@ struct BrowserView: View {
             Button("编辑标签…") { editTags(item) }
                 .disabled(model.isWorking)
         } else if item.isRegularFile {
-            Button(item.isEncrypted ? "解密文件…" : "加密文件…") { crypt(item) }
+            Button(item.isEncrypted ? String(localized: "解密文件…") : String(localized: "加密文件…")) { crypt(item) }
                 .disabled(model.isWorking)
             if item.isEncrypted {
                 Button("修改密码…") { changePassword(item) }
@@ -724,12 +732,12 @@ struct BrowserView: View {
     }
 
     private func createFolder() {
-        let name = NamePrompt(title: "新建文件夹", initialName: "", target: .folder(model.directory))
+        let name = NamePrompt(title: String(localized: "新建文件夹"), initialName: "", target: .folder(model.directory))
         prompt = BrowserPrompt(content: .name(name))
     }
 
     private func rename(_ item: FileItem) {
-        let name = NamePrompt(title: "重命名", initialName: item.name, target: .item(item.url))
+        let name = NamePrompt(title: String(localized: "重命名"), initialName: item.name, target: .item(item.url))
         prompt = BrowserPrompt(content: .name(name))
     }
 }

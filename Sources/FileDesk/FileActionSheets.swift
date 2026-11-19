@@ -116,8 +116,8 @@ struct PasswordSheet: View {
                 }
             }
             Text(mode == .encrypt
-                 ? "将在同一文件夹生成 .filedesk 副本，成功后可选择是否保留明文原文件。请记住密码，解密时需要它。"
-                 : "解密后立即打开临时副本。关闭会话时，修改会加密写回，临时副本会删除。")
+                 ? String(localized: "将在同一文件夹生成 .filedesk 副本，成功后可选择是否保留明文原文件。请记住密码，解密时需要它。")
+                 : String(localized: "解密后立即打开临时副本。关闭会话时，修改会加密写回，临时副本会删除。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -133,7 +133,7 @@ struct PasswordSheet: View {
                 Button("取消") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                     .disabled(isWorking)
-                Button(mode == .decrypt ? "解密并打开" : mode.title) {
+                Button(mode == .decrypt ? String(localized: "解密并打开") : mode.title) {
                     let value = password
                     password = ""
                     confirmation = ""
@@ -214,10 +214,10 @@ struct ChangePasswordSheet: View {
 
     private var validationMessage: String? {
         if !newPassword.isEmpty && oldPassword == newPassword {
-            return "新密码须与旧密码不同。"
+            return String(localized: "新密码须与旧密码不同。")
         }
         if !confirmation.isEmpty && newPassword != confirmation {
-            return "两次输入的新密码不一致。"
+            return String(localized: "两次输入的新密码不一致。")
         }
         return nil
     }

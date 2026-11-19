@@ -13,8 +13,8 @@ enum CipherMode: Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .encrypt: "加密文件"
-        case .decrypt: "解密文件"
+        case .encrypt: String(localized: "加密文件")
+        case .decrypt: String(localized: "解密文件")
         }
     }
 }
@@ -29,12 +29,12 @@ enum FileCipherError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidFormat: "加密文件的格式不受支持，或文件不完整。"
-        case .authenticationFailed: "密码不正确，或加密文件已损坏。"
-        case .changedSource: "处理期间源文件的大小发生了变化。请关闭正在编辑它的应用后再试。"
-        case .keyGenerationFailed: "无法生成加密密钥。"
-        case .unsupportedItem: "请选择普通文件。文件夹、应用程序包和符号链接无法加密或解密。"
-        case .createOutputFailed: "无法创建输出文件。"
+        case .invalidFormat: String(localized: "加密文件的格式不受支持，或文件不完整。")
+        case .authenticationFailed: String(localized: "密码不正确，或加密文件已损坏。")
+        case .changedSource: String(localized: "处理期间源文件的大小发生了变化。请关闭正在编辑它的应用后再试。")
+        case .keyGenerationFailed: String(localized: "无法生成加密密钥。")
+        case .unsupportedItem: String(localized: "请选择普通文件。文件夹、应用程序包和符号链接无法加密或解密。")
+        case .createOutputFailed: String(localized: "无法创建输出文件。")
         }
     }
 }

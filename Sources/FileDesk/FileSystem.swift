@@ -75,14 +75,14 @@ enum FileOperation: Sendable {
 
     var completion: String {
         switch self {
-        case .createFolder: "已新建文件夹"
-        case .rename: "已重命名"
-        case .copy: "已复制文件"
-        case .move: "已移动文件"
-        case .trash, .trashEncryptedOriginal: "已移到废纸篓"
-        case .setTags: "已更新文件夹标签"
-        case .encrypt: "已生成加密副本"
-        case .extract: "已解压到"
+        case .createFolder: String(localized: "已新建文件夹")
+        case .rename: String(localized: "已重命名")
+        case .copy: String(localized: "已复制文件")
+        case .move: String(localized: "已移动文件")
+        case .trash, .trashEncryptedOriginal: String(localized: "已移到废纸篓")
+        case .setTags: String(localized: "已更新文件夹标签")
+        case .encrypt: String(localized: "已生成加密副本")
+        case .extract: String(localized: "已解压到")
         }
     }
 }
@@ -112,12 +112,12 @@ private enum FileOperationError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidName: "请输入有效的名称。名称中不能包含斜杠或冒号。"
-        case .insideSource: "目标位置位于源文件夹内。"
-        case .sameFolder: "文件已在该文件夹中。"
-        case .destinationExists(let name): "目标位置已有同名项目「\(name)」。"
-        case .encryptionFilesChanged: "原文件或加密副本已变化或无法读取，已取消移到废纸篓。"
-        case .unsupportedArchive: "请选择支持的压缩文件。"
+        case .invalidName: String(localized: "请输入有效的名称。名称中不能包含斜杠或冒号。")
+        case .insideSource: String(localized: "目标位置位于源文件夹内。")
+        case .sameFolder: String(localized: "文件已在该文件夹中。")
+        case .destinationExists(let name): String(localized: "目标位置已有同名项目「\(name)」。")
+        case .encryptionFilesChanged: String(localized: "原文件或加密副本已变化或无法读取，已取消移到废纸篓。")
+        case .unsupportedArchive: String(localized: "请选择支持的压缩文件。")
         }
     }
 }
@@ -190,7 +190,7 @@ actor FileSystem {
         return FileItem(
             url: url.standardizedFileURL,
             name: url.lastPathComponent,
-            kind: isFolder ? "文件夹" : (values?.localizedTypeDescription ?? "文件"),
+            kind: isFolder ? String(localized: "文件夹") : (values?.localizedTypeDescription ?? String(localized: "文件")),
             isFolder: isFolder,
             isHidden: values?.isHidden == true || url.lastPathComponent.hasPrefix("."),
             isRegularFile: values?.isRegularFile == true && values?.isSymbolicLink != true && values?.isPackage != true,
@@ -268,7 +268,7 @@ actor FileSystem {
             } else if installIfMissing {
                 do { tool = try await sevenZip.install() }
                 catch {
-                    result.failures.append("安装 7-Zip 失败：\(error.localizedDescription)")
+                    result.failures.append(String(localized: "安装 7-Zip 失败：\(error.localizedDescription)"))
                     return result
                 }
             } else {

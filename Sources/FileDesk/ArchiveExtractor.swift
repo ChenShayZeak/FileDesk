@@ -8,7 +8,7 @@ enum ArchiveExtractor {
         let name = source.lastPathComponent
         let suffix = tarSuffixes.first { name.lowercased().hasSuffix($0) }
         let stem = suffix.map { String(name.dropLast($0.count)) } ?? source.deletingPathExtension().lastPathComponent
-        return ["", ".", ".."].contains(stem) || stem == name ? name + " 解压" : stem
+        return ["", ".", ".."].contains(stem) || stem == name ? name + String(localized: " 解压") : stem
     }
 
     static func extract(_ source: URL, into destination: URL, using tool: String) throws {
@@ -22,7 +22,7 @@ enum ArchiveExtractor {
             try run(tool, source: source, directory: temp)
             let entries = try manager.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)
             guard entries.count == 1, let tar = entries.first, FileSystem.item(at: tar).isRegularFile else {
-                throw ArchiveError("压缩包内没有可解压的 TAR 文件。")
+                throw ArchiveError(String(localized: "压缩包内没有可解压的 TAR 文件。"))
             }
             try run(tool, source: tar, directory: destination, type: ["-ttar"])
         } else {
@@ -72,7 +72,7 @@ enum ArchiveExtractor {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             let message = String(decoding: detail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            throw ArchiveError("解压失败，请检查压缩包是否完整或需要密码。" + (message.isEmpty ? "" : "\n" + message))
+            throw ArchiveError(String(localized: "解压失败，请检查压缩包是否完整或需要密码。") + (message.isEmpty ? "" : "\n" + message))
         }
     }
 

@@ -39,7 +39,7 @@ actor AppUpdater {
             url = app.deletingLastPathComponent().appendingPathComponent("FileDesktop.app", isDirectory: true)
         }
         guard url.pathExtension == "app", manager.fileExists(atPath: url.appending(path: "Contents/Info.plist").path) else {
-            throw UpdateError("找不到正在运行的文件桌应用包。请退出文件桌，从「应用程序」重新打开后再检查更新。")
+            throw UpdateError(String(localized: "找不到正在运行的文件桌应用包。请退出文件桌，从「应用程序」重新打开后再检查更新。"))
         }
         return (url, try installedVersion(at: url))
     }
@@ -49,7 +49,7 @@ actor AppUpdater {
         let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         guard info?["CFBundleIdentifier"] as? String == "local.filedesk.app",
               let version = info?["CFBundleShortVersionString"] as? String else {
-            throw UpdateError("应用包中的文件桌标识或版本信息无效，请从「应用程序」重新打开文件桌。")
+            throw UpdateError(String(localized: "应用包中的文件桌标识或版本信息无效，请从「应用程序」重新打开文件桌。"))
         }
         return version
     }
@@ -66,7 +66,7 @@ actor AppUpdater {
         let ref = "refs/tags/" + release.tag
         try run("/usr/bin/git", ["fetch", "--depth=1", "--no-tags", repository, ref + ":" + ref], in: source)
         let fetched = try run("/usr/bin/git", ["rev-parse", ref], in: source)
-        guard fetched == release.objectID else { throw UpdateError("版本标签已更改，请重新检查更新。") }
+        guard fetched == release.objectID else { throw UpdateError(String(localized: "版本标签已更改，请重新检查更新。")) }
         try run("/usr/bin/git", ["checkout", "--quiet", "--detach", ref], in: source)
         try run("/bin/bash", ["scripts/build-app.sh"], in: source, version: release.version)
 
@@ -79,10 +79,10 @@ actor AppUpdater {
         try run("/usr/bin/codesign", ["--verify", "--strict", replacement.path], in: stage)
         guard try Self.installedVersion(at: replacement) == release.version,
               manager.isExecutableFile(atPath: replacement.appending(path: "Contents/MacOS/FileDesk").path) else {
-            throw UpdateError("构建出的应用与选定版本不匹配。")
+            throw UpdateError(String(localized: "构建出的应用与选定版本不匹配。"))
         }
         guard try Self.installedVersion(at: app) == oldVersion else {
-            throw UpdateError("已安装的版本发生变化，请重新检查更新。")
+            throw UpdateError(String(localized: "已安装的版本发生变化，请重新检查更新。"))
         }
         guard renamex_np(replacement.path, app.path, UInt32(RENAME_SWAP)) == 0 else {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
@@ -112,7 +112,7 @@ actor AppUpdater {
         process.waitUntilExit()
         let output = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         guard process.terminationStatus == 0 else {
-            throw UpdateError(output.isEmpty ? "执行 \(process.executableURL!.lastPathComponent) 失败。" : String(output.suffix(1200)))
+            throw UpdateError(output.isEmpty ? String(localized: "执行 \(process.executableURL!.lastPathComponent) 失败。") : String(output.suffix(1200)))
         }
         return output
     }

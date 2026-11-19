@@ -17,9 +17,9 @@ enum EncryptedSessionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .alreadyOpen: "请先关闭当前解密会话。"
-        case .originalChanged: "原加密文件已被移动、删除或修改，无法安全写回。临时副本中的修改已保留。"
-        case .copyChanged: "临时副本仍在变化。请先在编辑应用中保存并关闭文件，再重试。"
+        case .alreadyOpen: String(localized: "请先关闭当前解密会话。")
+        case .originalChanged: String(localized: "原加密文件已被移动、删除或修改，无法安全写回。临时副本中的修改已保留。")
+        case .copyChanged: String(localized: "临时副本仍在变化。请先在编辑应用中保存并关闭文件，再重试。")
         }
     }
 }

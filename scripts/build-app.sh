@@ -38,7 +38,7 @@ install -m 644 "$project_dir/scripts/FileDesk.icns" "$bundle/Contents/Resources/
 for language in en zh-Hans; do
     resources="$bundle/Contents/Resources/$language.lproj"
     mkdir -p "$resources"
-    install -m 644 "$project_dir/scripts/$language.lproj/InfoPlist.strings" "$resources/InfoPlist.strings"
+    install -m 644 "$project_dir/scripts/$language.lproj/"*.strings "$resources/"
 done
 codesign --force --sign - "$bundle"
 codesign --verify --strict "$bundle"

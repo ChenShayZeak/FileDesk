@@ -46,7 +46,7 @@ final class FileDeskAppDelegate: NSObject, NSApplicationDelegate {
     func openFolderInFileDesk(_ pasteboard: NSPasteboard, userData: String?,
                               error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         guard let folder = Self.selectedFolder(on: pasteboard) else {
-            error.pointee = "请在访达中选中一个普通文件夹。"
+            error.pointee = String(localized: "请在访达中选中一个普通文件夹。") as NSString
             return
         }
         NSWorkspace.shared.open([folder], withApplicationAt: Bundle.main.bundleURL,

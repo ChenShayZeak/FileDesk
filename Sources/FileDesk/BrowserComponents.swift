@@ -8,8 +8,37 @@ enum BrowserColors {
         }
         return NSColor(srgbRed: 0.33, green: 0.23, blue: 0.76, alpha: 1)
     })
-    static let sidebar = Color(nsColor: .windowBackgroundColor)
     static let control = Color.primary.opacity(0.055)
+}
+
+private struct BrowserGlass: ViewModifier {
+    let cornerRadius: CGFloat
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if reduceTransparency {
+            content.background(Color(nsColor: .controlBackgroundColor), in: shape)
+                .overlay(shape.strokeBorder(.separator, lineWidth: 1))
+        } else {
+            #if compiler(>=6.2)
+            if #available(macOS 26, *) {
+                content.glassEffect(.regular, in: shape)
+            } else {
+                content.background(.regularMaterial, in: shape)
+            }
+            #else
+            content.background(.regularMaterial, in: shape)
+            #endif
+        }
+    }
+}
+
+extension View {
+    func browserGlass(cornerRadius: CGFloat) -> some View {
+        modifier(BrowserGlass(cornerRadius: cornerRadius))
+    }
 }
 
 struct ToolButton: View {
@@ -53,14 +82,14 @@ struct FileInspector: View {
                     glyph(item.symbol, title: item.name, detail: item.kind)
                     VStack(alignment: .leading, spacing: 11) {
                         if let modified = item.modified {
-                            info("修改日期", modified.formatted(date: .abbreviated, time: .shortened))
+                            info(String(localized: "修改日期"), modified.formatted(date: .abbreviated, time: .shortened))
                         }
                         if item.size != nil {
-                            info("大小", item.formattedSize)
+                            info(String(localized: "大小"), item.formattedSize)
                         }
-                        info("位置", item.url.deletingLastPathComponent().path)
+                        info(String(localized: "位置"), item.url.deletingLastPathComponent().path)
                         if item.isFolder {
-                            info("标签", item.tags.isEmpty ? "未添加" : item.tags.joined(separator: " · "))
+                            info(String(localized: "标签"), item.tags.isEmpty ? String(localized: "未添加") : item.tags.joined(separator: " · "))
                         }
                     }
                     Divider()
@@ -76,7 +105,7 @@ struct FileInspector: View {
                                 .disabled(isWorking)
                         } else if item.isRegularFile {
                             Button(
-                                item.isEncrypted ? "解密文件…" : "加密文件…",
+                                item.isEncrypted ? String(localized: "解密文件…") : String(localized: "加密文件…"),
                                 systemImage: item.isEncrypted ? "lock.open" : "lock"
                             ) { crypt(item) }
                             .disabled(isWorking)
@@ -88,9 +117,9 @@ struct FileInspector: View {
                     }
                     .controlSize(.small)
                 } else if items.isEmpty {
-                    glyph("doc.text.magnifyingglass", title: "未选择项目", detail: "选择文件或文件夹以查看属性。")
+                    glyph("doc.text.magnifyingglass", title: String(localized: "未选择项目"), detail: String(localized: "选择文件或文件夹以查看属性。"))
                 } else {
-                    glyph("square.stack", title: "已选择 \(items.count) 个项目", detail: "使用文件操作菜单批量处理。")
+                    glyph("square.stack", title: String(localized: "已选择 \(items.count) 个项目"), detail: String(localized: "使用文件操作菜单批量处理。"))
                 }
             }
             .padding(16)
@@ -214,7 +243,7 @@ struct GoToFolderSheet: View {
                 .onChange(of: selected) { reader.scrollTo(selected) }
                 .onChange(of: suggestedFor) { reader.scrollTo(0) }
             }
-            Text(error ?? "↑ ↓ 选择文件夹，Tab 补全，回车前往。")
+            Text(error ?? String(localized: "↑ ↓ 选择文件夹，Tab 补全，回车前往。"))
                 .font(.caption)
                 .foregroundStyle(error == nil ? Color.secondary : .red)
             HStack {
@@ -225,7 +254,7 @@ struct GoToFolderSheet: View {
                     if model.goToFolder(path) {
                         dismiss()
                     } else {
-                        error = "找不到这个文件夹，请检查路径和访问权限。"
+                        error = String(localized: "找不到这个文件夹，请检查路径和访问权限。")
                     }
                 }
                 .keyboardShortcut(.defaultAction)
