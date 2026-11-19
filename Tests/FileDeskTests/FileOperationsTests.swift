@@ -1,0 +1,263 @@
+import Foundation
+import XCTest
+@testable import FileDesk
+
+final class FileOperationsTests: XCTestCase {
+    private let fs = FileSystem()
+    private let sessions = EncryptedFileSessions()
+
+    @MainActor
+    func testHiddenItemsAreShownByDefaultAndRememberUserChoice() throws {
+        let suite = UUID().uuidString
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = BrowserModel(preferences: preferences)
+        XCTAssertTrue(model.showHidden)
+        model.showHidden = false
+        XCTAssertFalse(BrowserModel(preferences: preferences).showHidden)
+        model.showHidden = true
+        XCTAssertTrue(BrowserModel(preferences: preferences).showHidden)
+    }
+
+    func testHiddenItemsAreMarkedAndRespectVisibilitySetting() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data().write(to: directory.appendingPathComponent("普通.txt"))
+        try Data().write(to: directory.appendingPathComponent(".env"))
+        var folder = directory.appendingPathComponent("资料", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        var flags = URLResourceValues()
+        flags.isHidden = true
+        try folder.setResourceValues(flags)
+
+        let all = try await fs.read(directory, showHidden: true, sort: .name)
+        XCTAssertEqual(Set(all.filter(\.isHidden).map(\.name)), [".env", "资料"])
+        XCTAssertEqual(all.filter { !$0.isHidden }.map(\.name), ["普通.txt"])
+        let visible = try await fs.read(directory, showHidden: false, sort: .name)
+        XCTAssertEqual(visible.map(\.name), ["普通.txt"])
+    }
+
+    @MainActor
+    func testGoToFolderResolvesPathsAndRejectsFilesWithoutChangingHistory() throws {
+        let parent = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let child = parent.appendingPathComponent("子 目录", isDirectory: true)
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: false)
+        try Data().write(to: child.appendingPathComponent("文件"))
+        let model = BrowserModel()
+        XCTAssertTrue(model.goToFolder(parent.path))
+        XCTAssertTrue(model.goToFolder("子 目录"))
+        XCTAssertEqual(model.directory, child.standardizedFileURL)
+        for input in ["", "不存在", "文件"] {
+            XCTAssertFalse(model.goToFolder(input))
+            XCTAssertEqual(model.directory, child.standardizedFileURL)
+        }
+        model.goBack()
+        XCTAssertEqual(model.directory, parent.standardizedFileURL)
+        XCTAssertTrue(model.goToFolder("~"))
+        XCTAssertEqual(model.directory, FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL)
+    }
+
+    @MainActor
+    func testExternalOpenRoutesFoldersAndEncryptedFiles() throws {
+        let folder = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let model = BrowserModel()
+        model.openExternalURL(folder) { _ in XCTFail("文件夹不应触发解密") }
+        XCTAssertEqual(model.directory.path, folder.standardizedFileURL.path)
+        XCTAssertNil(model.notice)
+
+        let encrypted = folder.appendingPathComponent("示例.FILEDESK")
+        try Data().write(to: encrypted)
+        var requested: FileItem?
+        model.openExternalURL(encrypted) { requested = $0 }
+        XCTAssertEqual(requested?.url, encrypted.standardizedFileURL)
+        XCTAssertEqual(requested?.isEncrypted, true)
+
+        let file = folder.appendingPathComponent("示例.txt")
+        try Data().write(to: file)
+        let package = folder.appendingPathComponent("示例.app", isDirectory: true)
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
+        for url in [file, package, folder.appendingPathComponent("不存在"), URL(string: "https://example.com")!] {
+            model.notice = nil
+            model.openExternalURL(url) { _ in XCTFail("不支持的项目不应触发解密") }
+            XCTAssertNotNil(model.notice)
+            XCTAssertEqual(model.directory.path, folder.standardizedFileURL.path)
+        }
+    }
+
+    func testReadOnlySessionRemovesCopyWithoutReplacingCiphertext() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let samples = [Data(), Data(repeating: 0x7b, count: 1_048_576) + Data(UInt8(0)..<UInt8(128))]
+
+        for (index, contents) in samples.enumerated() {
+            let source = directory.appendingPathComponent("原件-\(index).bin")
+            try contents.write(to: source)
+            let password = "测试密码"
+            let encrypted = try await encrypt(source, password: password)
+            let ciphertext = try Data(contentsOf: encrypted)
+            let session = try await sessions.open(encrypted, password: password)
+            XCTAssertEqual(try Data(contentsOf: session.file), contents)
+            XCTAssertNotEqual(session.file, source)
+
+            let updated = try await sessions.close(draft: nil)
+            XCTAssertFalse(updated)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: session.file.deletingLastPathComponent().path))
+            XCTAssertEqual(try Data(contentsOf: encrypted), ciphertext)
+            XCTAssertEqual(try Data(contentsOf: source), contents)
+
+            let duplicate = await fs.perform(.encrypt(source: source, password: "其他密码"))
+            XCTAssertEqual(duplicate.completed, 0)
+        }
+    }
+
+    func testInternalDraftAndExternalEditsAreReencryptedAtTheSamePath() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("原件.txt")
+        let initialContents = Data([0xef, 0xbb, 0xbf]) + Data("原内容".utf8)
+        try initialContents.write(to: source)
+        let password = "测试密码"
+        let encrypted = try await encrypt(source, password: password)
+
+        let session = try await sessions.open(encrypted, password: password)
+        XCTAssertEqual(session.text, "原内容")
+        let internalUpdated = try await sessions.close(draft: "在文件桌编辑")
+        XCTAssertTrue(internalUpdated)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: session.file.path))
+
+        let externalSession = try await sessions.open(encrypted, password: password)
+        XCTAssertEqual(externalSession.text, "在文件桌编辑")
+        XCTAssertEqual(try Data(contentsOf: externalSession.file), Data([0xef, 0xbb, 0xbf]) + Data("在文件桌编辑".utf8))
+        try Data("从默认应用保存".utf8).write(to: externalSession.file, options: .atomic)
+        let externalUpdated = try await sessions.close(draft: nil)
+        XCTAssertTrue(externalUpdated)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: externalSession.file.path))
+
+        let reopened = try await sessions.open(encrypted, password: password)
+        XCTAssertEqual(reopened.text, "从默认应用保存")
+        _ = try await sessions.close(draft: nil)
+        XCTAssertEqual(try Data(contentsOf: source), initialContents)
+    }
+
+    func testWritebackConflictRetainsBothNewCiphertextAndOpenDraft() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("原件.txt")
+        try Data("原内容".utf8).write(to: source)
+        let password = "测试密码"
+        let encrypted = try await encrypt(source, password: password)
+        let session = try await sessions.open(encrypted, password: password)
+        let updatedElsewhere = Data("由其他程序改写".utf8)
+        try updatedElsewhere.write(to: encrypted, options: .atomic)
+
+        do {
+            _ = try await sessions.close(draft: "未写回的修改")
+            XCTFail("Conflicting ciphertext must not be replaced")
+        } catch EncryptedSessionError.originalChanged {
+            XCTAssertEqual(try Data(contentsOf: encrypted), updatedElsewhere)
+            XCTAssertEqual(try String(contentsOf: session.file, encoding: .utf8), "未写回的修改")
+        }
+
+        let discarded = try await sessions.close(draft: nil, discardingChanges: true)
+        XCTAssertFalse(discarded)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: session.file.path))
+        XCTAssertEqual(try Data(contentsOf: encrypted), updatedElsewhere)
+    }
+
+    func testExternalFixtureRejectsWrongPasswordDamageAndTruncation() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // Generated independently with PBKDF2-HMAC-SHA256 and AES-GCM.
+        let base64 = "RkRFU0sBAAECAwQFBgcICQoLDA0ODwAAAAAAAAASWBSf2Nog1Qo+M74pVqqqsa3TtOZvAJn+xeUtx8PtalAeZg=="
+        let fixture = try XCTUnwrap(Data(base64Encoded: base64))
+        let password = "外部检查 e\u{301} 密码"
+        var damaged = fixture
+        damaged[damaged.count - 1] ^= 0x01
+        let cases = [(fixture, "错误密码"), (Data(fixture.dropLast()), password), (damaged, password)]
+        let input = directory.appendingPathComponent("fixture.txt.filedesk")
+
+        for (contents, attempt) in cases {
+            try contents.write(to: input)
+            do {
+                _ = try await sessions.open(input, password: attempt)
+                _ = try await sessions.close(draft: nil)
+                XCTFail("Invalid decryption unexpectedly succeeded")
+            } catch is FileCipherError {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: input.deletingPathExtension().path))
+            }
+        }
+
+        try fixture.write(to: input)
+        let validSession = try await sessions.open(input, password: password)
+        XCTAssertEqual(validSession.text, "文件桌\nAES-GCM\n")
+        _ = try await sessions.close(draft: nil)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: validSession.file.path))
+    }
+
+    func testChangingPasswordRequiresOldPasswordAndPreservesContent() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("原件.bin")
+        let contents = Data(repeating: 0x9a, count: 1_048_601)
+        try contents.write(to: source)
+        let oldPassword = "旧密码"
+        let newPassword = "新密码"
+        let encrypted = try await encrypt(source, password: oldPassword)
+        let original = try Data(contentsOf: encrypted)
+
+        do {
+            try await sessions.changePassword(encrypted, oldPassword: "错误密码", newPassword: newPassword)
+            XCTFail("An incorrect password must not change ciphertext")
+        } catch FileCipherError.authenticationFailed {
+            XCTAssertEqual(try Data(contentsOf: encrypted), original)
+        }
+
+        try await sessions.changePassword(encrypted, oldPassword: oldPassword, newPassword: newPassword)
+        XCTAssertNotEqual(try Data(contentsOf: encrypted), original)
+        do {
+            _ = try await sessions.open(encrypted, password: oldPassword)
+            _ = try await sessions.close(draft: nil)
+            XCTFail("The previous password should no longer open the file")
+        } catch FileCipherError.authenticationFailed {}
+
+        let reopened = try await sessions.open(encrypted, password: newPassword)
+        XCTAssertEqual(try Data(contentsOf: reopened.file), contents)
+        _ = try await sessions.close(draft: nil)
+        let children = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertEqual(Set(children), Set([source.lastPathComponent, encrypted.lastPathComponent]))
+    }
+
+    func testFolderTagsPersistAndCanBeRemoved() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let folder = directory.appendingPathComponent("Work", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        let tags = ["资料", "进行中"]
+
+        let tagged = await fs.perform(.setTags(folder: folder, tags: tags))
+        XCTAssertEqual(tagged.completed, 1, "\(tagged.failures)")
+        let items = try await FileSystem().read(directory, showHidden: false, sort: .name)
+        XCTAssertEqual(Set(items.first?.tags ?? []), Set(tags))
+
+        let cleared = await fs.perform(.setTags(folder: folder, tags: []))
+        XCTAssertEqual(cleared.completed, 1, "\(cleared.failures)")
+        let refreshed = try await fs.read(directory, showHidden: false, sort: .name)
+        XCTAssertEqual(refreshed.first?.tags, [])
+    }
+
+    private func encrypt(_ source: URL, password: String) async throws -> URL {
+        let result = await fs.perform(.encrypt(source: source, password: password))
+        XCTAssertEqual(result.completed, 1, "\(result.failures)")
+        let file = source.appendingPathExtension("filedesk")
+        XCTAssertEqual(result.outputName, file.lastPathComponent)
+        return file
+    }
+
+    private func makeDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        return directory
+    }
+}
