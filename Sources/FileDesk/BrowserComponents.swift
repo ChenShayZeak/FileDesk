@@ -160,6 +160,7 @@ struct GoToFolderSheet: View {
     @State private var selected = 0
 
     var body: some View {
+        let visibleSuggestions = suggestedFor == path ? suggestions : []
         VStack(alignment: .leading, spacing: 14) {
             Text("前往文件夹").font(.headline)
             TextField("输入路径，例如 ~/Downloads", text: $path)
@@ -167,13 +168,14 @@ struct GoToFolderSheet: View {
                 .focused($pathFocused)
                 .onChange(of: path) { error = nil }
                 .onKeyPress(keys: [.tab, .downArrow, .upArrow]) { key in
-                    guard key.modifiers.isDisjoint(with: [.command, .control, .option, .shift]),
-                          suggestedFor == path, suggestions.indices.contains(selected) else {
+                    guard key.modifiers.isDisjoint(with: [.command, .control, .option, .shift]) else { return .ignored }
+                    if key.key == .tab, !path.isEmpty, suggestedFor != path { return .handled }
+                    guard visibleSuggestions.indices.contains(selected) else {
                         return .ignored
                     }
                     switch key.key {
-                    case .tab: path = suggestions[selected]
-                    case .downArrow: selected = min(selected + 1, suggestions.count - 1)
+                    case .tab: path = visibleSuggestions[selected]
+                    case .downArrow: selected = min(selected + 1, visibleSuggestions.count - 1)
                     default: selected = max(selected - 1, 0)
                     }
                     return .handled
@@ -186,39 +188,35 @@ struct GoToFolderSheet: View {
                     selected = 0
                     suggestedFor = input
                 }
-            if suggestedFor == path, !suggestions.isEmpty {
-                ScrollViewReader { reader in
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(suggestions.indices, id: \.self) { index in
-                                Button {
-                                    path = suggestions[index]
-                                    pathFocused = true
-                                } label: {
-                                    Label(suggestions[index], systemImage: "folder")
-                                        .lineLimit(1)
-                                        .truncationMode(.head)
-                                        .padding(.horizontal, 6)
-                                        .frame(maxWidth: .infinity, minHeight: 25, alignment: .leading)
-                                        .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .background(index == selected ? BrowserColors.accent.opacity(0.13) : .clear)
-                                .accessibilityAddTraits(index == selected ? .isSelected : [])
+            ScrollViewReader { reader in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(visibleSuggestions.indices, id: \.self) { index in
+                            Button {
+                                path = visibleSuggestions[index]
+                                pathFocused = true
+                            } label: {
+                                Label(visibleSuggestions[index], systemImage: "folder")
+                                    .lineLimit(1)
+                                    .truncationMode(.head)
+                                    .padding(.horizontal, 6)
+                                    .frame(maxWidth: .infinity, minHeight: 25, alignment: .leading)
+                                    .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .background(index == selected ? BrowserColors.accent.opacity(0.13) : .clear)
+                            .accessibilityAddTraits(index == selected ? .isSelected : [])
                         }
                     }
-                    .frame(height: CGFloat(min(5, suggestions.count)) * 25)
-                    .onChange(of: selected) { reader.scrollTo(selected) }
-                    .onChange(of: suggestedFor) { reader.scrollTo(0) }
                 }
-                Text("↑ ↓ 选择文件夹，Tab 补全，回车前往。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Keep the sheet and its text field stationary as completions change.
+                .frame(height: 5 * 25)
+                .onChange(of: selected) { reader.scrollTo(selected) }
+                .onChange(of: suggestedFor) { reader.scrollTo(0) }
             }
-            if let error {
-                Text(error).foregroundStyle(.red)
-            }
+            Text(error ?? "↑ ↓ 选择文件夹，Tab 补全，回车前往。")
+                .font(.caption)
+                .foregroundStyle(error == nil ? Color.secondary : .red)
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
