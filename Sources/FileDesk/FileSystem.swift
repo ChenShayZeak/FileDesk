@@ -81,6 +81,7 @@ enum FileOperation: Sendable {
     case copy(sources: [URL], destination: URL)
     case move(sources: [URL], destination: URL)
     case trash(sources: [URL])
+    case setHidden(sources: [URL], hidden: Bool)
     case setTags(folder: URL, tags: [String])
     case encrypt(source: URL, password: String)
     case extract(URL, installIfMissing: Bool = false)
@@ -93,6 +94,7 @@ enum FileOperation: Sendable {
         case .copy: String(localized: "已复制文件")
         case .move: String(localized: "已移动文件")
         case .trash, .trashEncryptedOriginal: String(localized: "已移到废纸篓")
+        case .setHidden(_, let hidden): hidden ? String(localized: "已隐藏项目") : String(localized: "已取消隐藏")
         case .setTags: String(localized: "已更新文件夹标签")
         case .encrypt: String(localized: "已生成加密副本")
         case .extract: String(localized: "已解压到")
@@ -118,6 +120,7 @@ struct EncryptedCopy: Sendable {
 
 private enum FileOperationError: LocalizedError {
     case invalidName
+    case hiddenByName
     case insideSource
     case sameFolder
     case destinationExists(String)
@@ -128,6 +131,7 @@ private enum FileOperationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidName: String(localized: "请输入有效的名称。名称中不能包含斜杠或冒号。")
+        case .hiddenByName: String(localized: "名称以点号开头，移除开头的点号后才能显示。")
         case .insideSource: String(localized: "目标位置位于源文件夹内。")
         case .sameFolder: String(localized: "文件已在该文件夹中。")
         case .destinationExists(let name): String(localized: "目标位置已有同名项目「\(name)」。")
@@ -335,6 +339,15 @@ actor FileSystem {
                 attempt(source.lastPathComponent) {
                     try manager.trashItem(at: source, resultingItemURL: nil)
                     result.trashedPaths.append(source.standardizedFileURL.path)
+                }
+            }
+        case .setHidden(let sources, let hidden):
+            var values = URLResourceValues()
+            values.isHidden = hidden
+            for var source in sources {
+                attempt(source.lastPathComponent) {
+                    if !hidden && source.lastPathComponent.hasPrefix(".") { throw FileOperationError.hiddenByName }
+                    try source.setResourceValues(values)
                 }
             }
         case .setTags(let folder, let tags):

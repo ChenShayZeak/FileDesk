@@ -242,3 +242,8 @@
 "跳过" = "Skip";
 "替换" = "Replace";
 "源项目或目标项目已变化，请重新移动。" = "The source or destination changed. Try moving the item again.";
+"隐藏项目" = "Hide Items";
+"取消隐藏" = "Unhide";
+"已隐藏项目" = "Items hidden";
+"已取消隐藏" = "Items unhidden";
+"名称以点号开头，移除开头的点号后才能显示。" = "Names that start with a dot stay hidden. Rename the item to remove the leading dot.";

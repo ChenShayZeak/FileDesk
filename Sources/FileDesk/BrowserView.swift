@@ -682,6 +682,22 @@ struct BrowserView: View {
     }
 
     @ViewBuilder
+    private func visibilityActions(_ items: [FileItem]) -> some View {
+        let visible = items.filter { !$0.isHidden }
+        let hidden = items.filter { $0.isHidden && !$0.name.hasPrefix(".") }
+        if !visible.isEmpty {
+            Button("隐藏项目") { model.perform(.setHidden(sources: visible.map(\.url), hidden: true)) }
+                .disabled(model.isWorking)
+        }
+        if !hidden.isEmpty {
+            Button("取消隐藏") { model.perform(.setHidden(sources: hidden.map(\.url), hidden: false)) }
+                .disabled(model.isWorking)
+        } else if visible.isEmpty && !items.isEmpty {
+            Text("名称以点号开头，移除开头的点号后才能显示。")
+        }
+    }
+
+    @ViewBuilder
     private func itemActions(_ items: [FileItem]) -> some View {
         if items.count == 1, let item = items.first?.checkingEncryption() {
             if !item.isEncrypted {
@@ -698,6 +714,7 @@ struct BrowserView: View {
         Button("移到…") { model.chooseDirectory(for: items) }
             .disabled(model.isWorking)
         Button("在访达中显示") { model.reveal(items) }
+        visibilityActions(items)
         Divider()
         Button("移到废纸篓…", role: .destructive) { trashItems = items }
             .disabled(model.isWorking)
@@ -795,6 +812,7 @@ struct BrowserView: View {
                     .disabled(model.isWorking || model.readError != nil)
                 Button("移到…") { model.chooseDirectory(for: model.selectedItems) }
                     .disabled(model.selection.isEmpty || model.isWorking)
+                visibilityActions(model.selectedItems)
                 Button("移到废纸篓…", role: .destructive) { trashItems = model.selectedItems }
                     .disabled(model.selection.isEmpty || model.isWorking)
             } label: {

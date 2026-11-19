@@ -148,6 +148,36 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertTrue(BrowserModel(preferences: preferences).showHidden)
     }
 
+    func testSetHiddenRoundTripOnFilesFoldersAndLinks() async throws {
+        let root = try makeDirectory()
+        let manager = FileManager.default
+        defer { try? manager.removeItem(at: root) }
+        let file = root.appendingPathComponent("file.txt")
+        let folder = root.appendingPathComponent("folder", isDirectory: true)
+        let link = root.appendingPathComponent("link")
+        let target = root.appendingPathComponent("target")
+        let dotfile = root.appendingPathComponent(".env")
+        for url in [file, target, dotfile] { try Data("contents".utf8).write(to: url) }
+        try manager.createDirectory(at: folder, withIntermediateDirectories: false)
+        try manager.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let sources = [file, folder, link]
+        let hide = await fs.perform(.setHidden(sources: sources, hidden: true))
+        XCTAssertEqual(hide.completed, 3, hide.failures.joined())
+        let shown = try await fs.read(root, showHidden: false, sort: .name)
+        XCTAssertEqual(shown.map(\.name), ["target"])
+        let all = try await fs.read(root, showHidden: true, sort: .name)
+        XCTAssertEqual(Set(all.filter(\.isHidden).map(\.name)), ["file.txt", "folder", "link", ".env"])
+
+        let unhide = await fs.perform(.setHidden(sources: [dotfile] + sources, hidden: false))
+        XCTAssertEqual(unhide.completed, 3)
+        XCTAssertEqual(unhide.failures.count, 1)
+        let restored = try await fs.read(root, showHidden: false, sort: .name)
+        XCTAssertEqual(Set(restored.map(\.name)), ["file.txt", "folder", "link", "target"])
+        XCTAssertEqual(try String(contentsOf: file), "contents")
+        XCTAssertEqual(try String(contentsOf: dotfile), "contents")
+    }
+
     func testHiddenItemsAreMarkedAndRespectVisibilitySetting() async throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

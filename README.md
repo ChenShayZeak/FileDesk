@@ -9,16 +9,16 @@
 ### 功能
 
 - **浏览与搜索**。在列表或网格中浏览文件，通过路径补全直达目录，按文件名或文件夹标签递归搜索。隐藏项目有独立标记，搜索结果显示所在目录。
-- **文件操作**。支持范围多选、复制粘贴、移动、重命名、标签、快速预览和移到废纸篓。1.0.6 支持在文件桌与访达之间用快捷键复制粘贴、在网格中用 Shift 连选，以及移动重名项目时逐项确认替换。
+- **文件操作**。支持范围多选、复制粘贴、移动、重命名、标签、快速预览和移到废纸篓。可与访达互相复制粘贴，移动重名项目时可逐项选择替换或跳过。1.0.7 新增批量隐藏和取消隐藏，使用 macOS 隐藏属性，保留原文件名。
 - **加密与解压**。给单个文件创建受密码保护的 `.filedesk` 副本，解锁后可预览、编辑并重新加密。压缩包可用 7-Zip 就地解压。
 - **工作区与外观**。侧栏提供常用位置、收藏和最近使用。左右侧栏和底部历史路径面板均可收起。设置支持简体中文、英文、浅色或深色外观，以及自定义强调色。
 
 ### 部署
 
-运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.6：
+运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.7：
 
 ```bash
-git clone --branch 1.0.6 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.7 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -28,7 +28,7 @@ open dist
 
 **更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。完成后退出并重新打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
 
-**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.6` 或 `v1.0.6`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
+**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.7` 或 `v1.0.7`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
 
 ### 用法
 
@@ -36,6 +36,7 @@ open dist
 | --- | --- |
 | 前往目录 | 按 `⌘⇧G` 输入路径，用 ↑ / ↓ 选择候选，Tab 补全，回车进入。例如输入 `~/Dow` 并按 Tab 可补全为 `~/Downloads/`。支持相对路径、空格和 `..`。用 `⌘⇧O` 打开文件夹选择器，`⌘[` / `⌘]` 后退或前进。 |
 | 搜索与排序 | 按 `⌘F` 搜索当前目录及可访问的子目录。搜索沿用隐藏文件设置，跳过软件包内部和符号链接指向的目录。在「⋯」选择按名称、修改时间、大小或种类排序。按 `⌘⇧.` 切换隐藏项目，默认显示。 |
+| 隐藏与取消隐藏 | 选中一个或多个文件或文件夹，从右键菜单或底部「文件操作」菜单选择「隐藏项目」。开启「显示隐藏文件」时仍可看到带「隐藏」标记的项目。按 `⌘⇧.` 切换显示。要恢复，右键选择「取消隐藏」。以点号开头的名称（如 `.env`）自带隐藏效果，需手动改名才能去掉开头的点号。 |
 | 选择与复制 | 先点第一项，按住 Shift 点最后一项，选中整个范围。按住 ⌘ 点击可逐项添加或取消。按 `⌘C` 复制，打开目标目录按 `⌘V` 粘贴，也可粘贴到访达。用 `⌥⌘C` 复制绝对路径，每项一行。 |
 | 移动与删除 | 右键选择「移到…」。目标已有同名项目时，核对来源和目标路径后选择「替换」或「跳过」，默认跳过。**替换文件夹会覆盖目标文件夹及其内容。** 用 `⌘⌫` 将所选项目移到废纸篓，`⌘⇧N` 新建文件夹。 |
 | 收藏与历史 | 点目录标题旁的星标切换收藏。右上角可展开历史面板，重访通过「前往文件夹」访问过的路径，或点 × 删除记录。「最近使用」记录已打开的文件，随改名和删除同步。切回文件桌或按 `⌘R` 可同步访达中的变化。 |
@@ -60,16 +61,16 @@ FileDesktop is a macOS file manager built with SwiftUI and AppKit. Browsing, sea
 ### Features
 
 - **Browsing and search.** Browse in list or grid view, jump to folders with path completion, and search subfolders by filename or folder tag. Hidden items have a badge. Search results show their enclosing folder.
-- **File operations.** Select ranges, copy and paste, move, rename, tag, preview, and move items to the Trash. Version 1.0.6 adds clipboard shortcuts that work with Finder, Shift-click range selection in the grid, and per-item replacement prompts when moving items with matching names.
+- **File operations.** Select ranges, copy and paste, move, rename, tag, preview, and move items to the Trash. Copy and paste between FileDesktop and Finder, or choose whether to replace each conflicting item when moving files. Version 1.0.7 adds bulk hide and unhide using the macOS hidden flag, preserving filenames.
 - **Encryption and extraction.** Create a password-protected `.filedesk` copy of a file, unlock it to preview or edit, then save changes back to the encrypted copy. Extract archives in place with 7-Zip.
 - **Workspace and appearance.** The sidebar gives you common locations, favorites, and recently opened files. Both sidebars and the path history panel can be collapsed. Settings include English and Simplified Chinese, light and dark appearances, and a custom accent color.
 
 ### Deployment
 
-FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.6, run:
+FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.7, run:
 
 ```bash
-git clone --branch 1.0.6 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.7 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -79,7 +80,7 @@ Drag `FileDesktop.app` from the Finder window into Applications. Double-click it
 
 **Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. Quit and reopen to finish. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
 
-**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.6` or `v1.0.6`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
+**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.7` or `v1.0.7`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
 
 ### Usage
 
@@ -87,6 +88,7 @@ Drag `FileDesktop.app` from the Finder window into Applications. Double-click it
 | --- | --- |
 | Go to a folder | Press `⌘⇧G` and type a path. Use ↑ / ↓ to choose a suggestion, Tab to complete it, and Return to open it. For example, type `~/Dow` and press Tab to complete `~/Downloads/`. Relative paths, spaces, and `..` are supported. Use `⌘⇧O` for the folder chooser and `⌘[` / `⌘]` to go back or forward. |
 | Search and sort | Press `⌘F` to search the current folder and its accessible subfolders. Search respects hidden-item visibility and skips package contents and symlinked folders. Use **⋯** to sort by name, modification time, size, or kind. Press `⌘⇧.` to toggle hidden items, which are shown by default. |
+| Hide and unhide | Select one or more files or folders, then choose **Hide Items** from the context menu or the file actions menu at the bottom. With **Show Hidden Files** on, hidden items remain visible with a badge. Press `⌘⇧.` to toggle visibility. Right-click and choose **Unhide** to clear the hidden flag. Dotfiles such as `.env` stay hidden by name until you rename them to remove the leading dot. |
 | Select and copy | Click the first item, then Shift-click the last to select the range. Command-click toggles individual items. Press `⌘C`, open the destination, then press `⌘V`. You can also paste into Finder. Use `⌥⌘C` to copy absolute paths, one per line. |
 | Move and delete | Right-click and choose **Move To…**. If a name already exists, check the source and destination paths, then choose **Replace** or **Skip**. Skip is the default. **Replacing a folder overwrites the destination folder and its contents.** Press `⌘⌫` to move selected items to the Trash or `⌘⇧N` to create a folder. |
 | Favorites and history | Click the star beside a folder title to toggle it as a favorite. Open the history panel from the top right to revisit paths entered with Go to Folder, or click × to remove an entry. Recently opened files track renames and deletions. Switch back to FileDesktop or press `⌘R` to pick up changes from Finder. |
