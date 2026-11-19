@@ -14,6 +14,11 @@ struct BrowserView: View {
     @State private var prompt: BrowserPrompt?
     @State private var trashItems: [FileItem] = []
 
+    private let panelCornerRadius: CGFloat = 18
+    private let panelSpacing: CGFloat = 8
+    private let sidebarWidth: CGFloat = 182
+    private let inspectorWidth: CGFloat = 226
+
     private var panelAnimation: Animation? {
         reduceMotion ? nil : .easeInOut(duration: 0.38)
     }
@@ -21,66 +26,10 @@ struct BrowserView: View {
     var body: some View {
         @Bindable var model = model
 
-        HStack(spacing: 0) {
-            SlidingPanel(axis: .horizontal, progress: showSidebar ? 1 : 0, anchor: .topTrailing) {
-                sidebar
-                    .frame(width: 182)
-                    .browserGlass(cornerRadius: 18)
-                    .padding(8)
-            }
-            .clipped()
-            .disabled(!showSidebar)
-            .accessibilityHidden(!showSidebar)
-            .animation(panelAnimation, value: showSidebar)
-            VStack(spacing: 0) {
-                toolbar
-                    .browserGlass(cornerRadius: 18)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                HStack(spacing: 0) {
-                    filePane
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(.background)
-                    SlidingPanel(axis: .horizontal, progress: showInspector ? 1 : 0) {
-                        HStack(spacing: 0) {
-                            Divider()
-                            FileInspector(
-                                items: model.selectedItems, isWorking: model.isWorking,
-                                open: open, preview: showPreview, editTags: editTags,
-                                crypt: crypt, changePassword: changePassword
-                            )
-                            .frame(width: 226)
-                        }
-                    }
-                    .clipped()
-                    .disabled(!showInspector)
-                    .accessibilityHidden(!showInspector)
-                    .animation(panelAnimation, value: showInspector)
-                }
-                .clipped()
-                .overlay(alignment: .topTrailing) {
-                    if model.copiedPathsID != nil {
-                        Label("路径已复制", systemImage: "checkmark.circle.fill")
-                            .font(.callout.weight(.medium))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(.regularMaterial, in: Capsule())
-                            .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
-                            .padding(8)
-                            .allowsHitTesting(false)
-                    }
-                }
-                Divider()
-                SlidingPanel(axis: .vertical, progress: showPathHistory ? 1 : 0) {
-                    pathHistory.overlay(alignment: .bottom) { Divider() }
-                }
-                .clipped()
-                .disabled(!showPathHistory)
-                .accessibilityHidden(!showPathHistory)
-                .animation(panelAnimation, value: showPathHistory)
-                statusBar
-            }
+        GeometryReader { window in
+            browserContent(width: window.size.width)
         }
+        .padding(8)
         .background {
             LinearGradient(colors: [BrowserColors.accent.opacity(0.09), .clear],
                            startPoint: .topLeading, endPoint: .center)
@@ -178,6 +127,74 @@ struct BrowserView: View {
             }
         } message: { items in
             Text(items.count == 1 ? items[0].name : String(localized: "已选择 \(items.count) 个项目。"))
+        }
+    }
+
+    private func browserContent(width: CGFloat) -> some View {
+        // The viewport animates, but the grid reflows only once to the destination width.
+        let gridWidth = max(0, width - (showSidebar ? sidebarWidth + panelSpacing : 0)
+                                - (showInspector ? inspectorWidth + panelSpacing : 0))
+        return HStack(spacing: 0) {
+            SlidingPanel(axis: .horizontal, progress: showSidebar ? 1 : 0, anchor: .topTrailing) {
+                sidebar
+                    .frame(width: sidebarWidth)
+                    .browserGlass(cornerRadius: panelCornerRadius)
+                    .padding(.trailing, panelSpacing)
+            }
+            .clipped()
+            .disabled(!showSidebar)
+            .accessibilityHidden(!showSidebar)
+            .animation(panelAnimation, value: showSidebar)
+            VStack(spacing: 0) {
+                toolbar
+                    .browserGlass(cornerRadius: panelCornerRadius)
+                    .padding(.bottom, panelSpacing)
+                HStack(spacing: 0) {
+                    filePane(gridWidth: gridWidth)
+                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                        .background(.background)
+                        .clipShape(RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous))
+                    SlidingPanel(axis: .horizontal, progress: showInspector ? 1 : 0) {
+                        FileInspector(
+                            items: model.selectedItems, isWorking: model.isWorking,
+                            open: open, preview: showPreview, editTags: editTags,
+                            crypt: crypt, changePassword: changePassword
+                        )
+                        .frame(width: inspectorWidth)
+                        .browserGlass(cornerRadius: panelCornerRadius)
+                        .padding(.leading, panelSpacing)
+                    }
+                    .clipped()
+                    .disabled(!showInspector)
+                    .accessibilityHidden(!showInspector)
+                    .animation(panelAnimation, value: showInspector)
+                }
+                .clipped()
+                .overlay(alignment: .topTrailing) {
+                    if model.copiedPathsID != nil {
+                        Label("路径已复制", systemImage: "checkmark.circle.fill")
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(.regularMaterial, in: Capsule())
+                            .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
+                            .padding(8)
+                            .allowsHitTesting(false)
+                    }
+                }
+                SlidingPanel(axis: .vertical, progress: showPathHistory ? 1 : 0) {
+                    pathHistory
+                        .browserGlass(cornerRadius: panelCornerRadius)
+                        .padding(.top, panelSpacing)
+                }
+                .clipped()
+                .disabled(!showPathHistory)
+                .accessibilityHidden(!showPathHistory)
+                .animation(panelAnimation, value: showPathHistory)
+                statusBar
+                    .browserGlass(cornerRadius: panelCornerRadius)
+                    .padding(.top, panelSpacing)
+            }
         }
     }
 
@@ -418,7 +435,7 @@ struct BrowserView: View {
         .frame(height: 44)
     }
 
-    private var filePane: some View {
+    private func filePane(gridWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 9) {
                 breadcrumbBar
@@ -476,6 +493,10 @@ struct BrowserView: View {
                 }
             } else if gridLayout {
                 fileGrid
+                    .frame(width: gridWidth)
+                    .transaction { $0.animation = nil }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .clipped()
             } else {
                 fileTable
             }
@@ -768,7 +789,6 @@ struct BrowserView: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 15)
         .frame(height: 33)
-        .background(BrowserColors.control.opacity(0.45))
     }
 
     private func emptyState<Action: View>(

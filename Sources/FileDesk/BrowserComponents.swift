@@ -15,23 +15,29 @@ private struct BrowserGlass: ViewModifier {
     let cornerRadius: CGFloat
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if reduceTransparency {
-            content.background(Color(nsColor: .controlBackgroundColor), in: shape)
-                .overlay(shape.strokeBorder(.separator, lineWidth: 1))
-        } else {
-            #if compiler(>=6.2)
-            if #available(macOS 26, *) {
-                content.glassEffect(.regular, in: shape)
-            } else {
-                content.background(.regularMaterial, in: shape)
+        content
+            .background {
+                if reduceTransparency {
+                    shape.fill(Color(nsColor: .controlBackgroundColor))
+                } else {
+                    #if compiler(>=6.2)
+                    if #available(macOS 26, *) {
+                        Color.clear.glassEffect(.regular, in: shape)
+                    } else {
+                        shape.fill(.regularMaterial)
+                    }
+                    #else
+                    shape.fill(.regularMaterial)
+                    #endif
+                }
             }
-            #else
-            content.background(.regularMaterial, in: shape)
-            #endif
-        }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(.separator.opacity(reduceTransparency ? 1 : 0.45), lineWidth: 0.5)
+                    .allowsHitTesting(false)
+            }
     }
 }
 
@@ -156,7 +162,6 @@ struct FileInspector: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(BrowserColors.control.opacity(0.45))
     }
 
     private func glyph(_ symbol: String, title: String, detail: String) -> some View {
