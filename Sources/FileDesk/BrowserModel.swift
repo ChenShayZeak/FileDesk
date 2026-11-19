@@ -208,7 +208,17 @@ final class BrowserModel {
             let kind = type == .folder ? "文件夹" : ".filedesk 文件"
             status = "\(kind)默认使用「\(FileManager.default.displayName(atPath: app.path))」打开"
         } catch {
-            notice = FileNotice(title: "未能更改默认打开方式", message: error.localizedDescription)
+            guard type == .folder else {
+                notice = FileNotice(title: "未能更改默认打开方式", message: error.localizedDescription)
+                return
+            }
+            let current = NSWorkspace.shared.urlForApplication(toOpen: .folder)
+            let currentName = current.map { FileManager.default.displayName(atPath: $0.path) }
+            let detail = currentName.map { "当前默认应用为「\($0)」。" } ?? ""
+            notice = FileNotice(
+                title: "未能更改文件夹的默认应用",
+                message: "\(detail)macOS 未接受此次更改。你仍可在文件桌中按 ⌘⇧G 输入路径打开文件夹。"
+            )
         }
     }
 
