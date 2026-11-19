@@ -67,7 +67,7 @@
 "已复制 %lld 个项目到剪贴板" = "Copied to the clipboard: %lld";
 "已复制 %lld 条路径" = "Paths copied: %lld";
 "已复制文件" = "Copied";
-"已复制路径" = "Path copied";
+"路径已复制" = "Path copied";
 "已安装 %@" = "Installed %@";
 "已安装版本为 %@。" = "Version %@ is installed.";
 "已安装的版本发生变化，请重新检查更新。" = "The installed version changed. Check for updates again.";
@@ -95,7 +95,7 @@
 "执行 %@ 失败。" = "Could not run %@.";
 "找不到正在运行的文件桌应用包。请退出文件桌，从「应用程序」重新打开后再检查更新。" = "FileDesktop could not find its application bundle. Quit and reopen it from Applications, then check again.";
 "找不到这个文件夹，请检查路径和访问权限。" = "Folder not found. Check the path and your access permissions.";
-"按文件名或标签搜索当前文件夹" = "Search this folder by name or tag";
+"按名称或标签搜索当前文件夹及子文件夹" = "Search this folder and its subfolders by name or tag";
 "排序与更多操作" = "Sort and More Actions";
 "排序方式" = "Sort By";
 "提示" = "FileDesktop";
@@ -212,3 +212,8 @@
 "隐藏历史路径" = "Hide Path History";
 "隐藏详细信息" = "Hide Details";
 "默认打开方式" = "Default Apps";
+"在终端中打开当前文件夹" = "Open Current Folder in Terminal";
+"无法打开终端" = "Couldn’t Open Terminal";
+"未找到系统终端应用。" = "The Terminal app could not be found.";
+"当前文件夹" = "Current Folder";
+"正在搜索子文件夹…" = "Searching subfolders…";

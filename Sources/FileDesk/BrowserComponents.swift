@@ -41,6 +41,35 @@ extension View {
     }
 }
 
+// Lay out the full panel and reveal it by animating the space it occupies.
+struct SlidingPanel: Layout {
+    let axis: Axis
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    private func panelProposal(_ proposal: ProposedViewSize) -> ProposedViewSize {
+        axis == .horizontal
+            ? ProposedViewSize(width: nil, height: proposal.height)
+            : ProposedViewSize(width: proposal.width, height: nil)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let panel = subviews.first else { return .zero }
+        var size = panel.sizeThatFits(panelProposal(proposal))
+        if axis == .horizontal { size.width *= progress } else { size.height *= progress }
+        return size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading,
+                              proposal: panelProposal(ProposedViewSize(bounds.size)))
+    }
+}
+
 struct ToolButton: View {
     let title: String
     let symbol: String

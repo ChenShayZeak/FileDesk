@@ -42,6 +42,7 @@ final class BrowserModel {
     private(set) var workingMessage = String(localized: "正在处理文件…")
     private(set) var readError: String?
     private(set) var status: String?
+    var copiedPathsID: UUID?
     var selection: Set<URL> = []
     var preview: URL?
     var notice: FileNotice?
@@ -50,11 +51,17 @@ final class BrowserModel {
     private(set) var isEditingExternally = false
     var sessionDraft: String?
     var query = "" {
-        didSet { updateVisibleItems() }
+        didSet {
+            guard searchTerm != oldValue.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+            replaceItems(searchTerm.isEmpty ? allItems : items.filter { $0.matches(searchTerm) })
+            refresh()
+        }
     }
     var showHidden: Bool {
         didSet {
             preferences.set(showHidden, forKey: "showHidden")
+            allItems = []
+            replaceItems([])
             refresh()
         }
     }
@@ -88,6 +95,13 @@ final class BrowserModel {
             Favorite(url: home.appendingPathComponent("Downloads", isDirectory: true), title: String(localized: "下载"), symbol: "arrow.down.to.line"),
             Favorite(url: URL(fileURLWithPath: "/Applications", isDirectory: true), title: String(localized: "应用程序"), symbol: "square.grid.2x2")
         ]
+    }
+
+    var searchTerm: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    func searchLocation(of item: FileItem) -> String {
+        let parent = item.url.deletingLastPathComponent().pathComponents.dropFirst(directory.pathComponents.count)
+        return parent.isEmpty ? String(localized: "当前文件夹") : parent.joined(separator: "/")
     }
 
     var directoryTitle: String { title(for: directory) }
@@ -263,17 +277,29 @@ final class BrowserModel {
         let directory = self.directory
         let showHidden = self.showHidden
         let sort = self.sort
+        let term = searchTerm
         load = Task { [weak self, fileSystem] in
             do {
-                let snapshot = try await fileSystem.read(directory, showHidden: showHidden, sort: sort)
+                let snapshot: [FileItem]
+                if term.isEmpty {
+                    snapshot = try await fileSystem.read(directory, showHidden: showHidden, sort: sort)
+                    guard !Task.isCancelled else { return }
+                    self?.allItems = snapshot
+                } else {
+                    try await Task.sleep(for: .milliseconds(180))
+                    var visible = Set(self?.items.map(\.id) ?? [])
+                    snapshot = try await FileSystem.search(directory, term: term, showHidden: showHidden, sort: sort) { batch in
+                        guard !Task.isCancelled else { return }
+                        self?.items.append(contentsOf: batch.filter { visible.insert($0.id).inserted })
+                    }
+                }
                 guard !Task.isCancelled, let self else { return }
-                allItems = snapshot
-                updateVisibleItems()
+                replaceItems(snapshot)
                 isLoading = false
             } catch {
                 guard !Task.isCancelled, let self else { return }
-                allItems = []
-                updateVisibleItems()
+                if term.isEmpty { allItems = [] }
+                replaceItems([])
                 readError = error.localizedDescription
                 isLoading = false
             }
@@ -298,6 +324,20 @@ final class BrowserModel {
         }
     }
 
+    func openInTerminal() async {
+        let workspace = NSWorkspace.shared
+        let title = String(localized: "无法打开终端")
+        guard let terminal = workspace.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            notice = FileNotice(title: title, message: String(localized: "未找到系统终端应用。"))
+            return
+        }
+        do {
+            _ = try await workspace.open([directory], withApplicationAt: terminal, configuration: .init())
+        } catch {
+            notice = FileNotice(title: title, message: error.localizedDescription)
+        }
+    }
+
     func reveal(_ items: [FileItem]) {
         NSWorkspace.shared.activateFileViewerSelecting(items.map(\.url))
     }
@@ -317,7 +357,8 @@ final class BrowserModel {
         let paths = urls.map(\.path).joined(separator: "\n")
         NSPasteboard.general.clearContents()
         if NSPasteboard.general.setString(paths, forType: .string) {
-            status = urls.count == 1 ? String(localized: "已复制路径") : String(localized: "已复制 \(urls.count) 条路径")
+            copiedPathsID = UUID()
+            status = urls.count == 1 ? String(localized: "路径已复制") : String(localized: "已复制 \(urls.count) 条路径")
         } else {
             notice = FileNotice(title: String(localized: "无法复制路径"), message: String(localized: "请再试一次。"))
         }
@@ -466,17 +507,15 @@ final class BrowserModel {
     private func enter(_ destination: URL) {
         directory = destination
         allItems = []
-        selection = []
-        query = ""
+        replaceItems([])
         status = nil
-        refresh()
+        let wasSearching = !searchTerm.isEmpty
+        query = ""
+        if !wasSearching { refresh() }
     }
 
-    private func updateVisibleItems() {
-        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        items = term.isEmpty ? allItems : allItems.filter { item in
-            item.name.localizedStandardContains(term) || item.tags.contains { $0.localizedStandardContains(term) }
-        }
+    private func replaceItems(_ results: [FileItem]) {
+        items = results
         if !selection.isEmpty {
             selection.formIntersection(items.lazy.map(\.id))
         }

@@ -17,6 +17,10 @@ struct FileItem: Identifiable, Sendable {
     var isEncrypted: Bool { isRegularFile && fileExtension == CipherMode.fileExtension }
     var isArchive: Bool { isRegularFile && ArchiveExtractor.extensions.contains(fileExtension) }
 
+    func matches(_ term: String) -> Bool {
+        name.localizedStandardContains(term) || tags.contains { $0.localizedStandardContains(term) }
+    }
+
     var symbol: String {
         if isFolder { return "folder.fill" }
         if isEncrypted { return "lock.doc" }
@@ -181,6 +185,44 @@ actor FileSystem {
             items.append(Self.item(at: url))
         }
         return items.sorted(by: sort.precedes)
+    }
+
+    static func search(_ directory: URL, term: String, showHidden: Bool, sort: FileSort,
+                onBatch: @MainActor ([FileItem]) -> Void) async throws -> [FileItem] {
+        var options: FileManager.DirectoryEnumerationOptions = [.skipsPackageDescendants]
+        if !showHidden { options.insert(.skipsHiddenFiles) }
+        var rootError: Error?
+        let entries = FileManager.default.enumerator(
+            at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isPackageKey, .isSymbolicLinkKey],
+            options: options
+        ) { url, error in
+            if url.standardizedFileURL.path == directory.standardizedFileURL.path { rootError = error }
+            return true
+        }
+        guard let entries else { throw CocoaError(.fileReadUnknown) }
+
+        var matches: [FileItem] = []
+        var published = 0
+        var nextUpdate = ContinuousClock.now
+        while let url = entries.nextObject() as? URL {
+            try Task.checkCancellation()
+            // Only folders carry searchable tags. Avoid loading full metadata for unrelated entries.
+            if !url.lastPathComponent.localizedStandardContains(term) {
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .isSymbolicLinkKey])
+                guard values?.isDirectory == true, values?.isPackage != true, values?.isSymbolicLink != true,
+                      let tags = try? url.resourceValues(forKeys: [.tagNamesKey]).tagNames,
+                      tags.contains(where: { $0.localizedStandardContains(term) }) else { continue }
+            }
+            matches.append(Self.item(at: url))
+            if ContinuousClock.now >= nextUpdate {
+                await onBatch(Array(matches[published...]))
+                published = matches.count
+                nextUpdate = .now + .milliseconds(200)
+            }
+        }
+        if let rootError { throw rootError }
+        try Task.checkCancellation()
+        return matches.sorted(by: sort.precedes)
     }
 
     static func item(at url: URL) -> FileItem {

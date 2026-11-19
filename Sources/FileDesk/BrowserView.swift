@@ -14,7 +14,7 @@ struct BrowserView: View {
     @State private var trashItems: [FileItem] = []
 
     private var panelAnimation: Animation? {
-        reduceMotion ? nil : .easeInOut(duration: 0.22)
+        reduceMotion ? nil : .easeInOut(duration: 0.38)
     }
 
     var body: some View {
@@ -34,7 +34,7 @@ struct BrowserView: View {
                     filePane
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(.background)
-                    if showInspector {
+                    SlidingPanel(axis: .horizontal, progress: showInspector ? 1 : 0) {
                         HStack(spacing: 0) {
                             Divider()
                             FileInspector(
@@ -44,19 +44,33 @@ struct BrowserView: View {
                             )
                             .frame(width: 226)
                         }
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
+                    .clipped()
+                    .disabled(!showInspector)
+                    .accessibilityHidden(!showInspector)
+                    .animation(panelAnimation, value: showInspector)
                 }
                 .clipped()
+                .overlay(alignment: .topTrailing) {
+                    if model.copiedPathsID != nil {
+                        Label("路径已复制", systemImage: "checkmark.circle.fill")
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(.regularMaterial, in: Capsule())
+                            .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
+                            .padding(8)
+                            .allowsHitTesting(false)
+                    }
+                }
                 Divider()
-                VStack(spacing: 0) {
-                    if showPathHistory {
-                        pathHistory
-                            .overlay(alignment: .bottom) { Divider() }
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+                SlidingPanel(axis: .vertical, progress: showPathHistory ? 1 : 0) {
+                    pathHistory.overlay(alignment: .bottom) { Divider() }
                 }
                 .clipped()
+                .disabled(!showPathHistory)
+                .accessibilityHidden(!showPathHistory)
+                .animation(panelAnimation, value: showPathHistory)
                 statusBar
             }
         }
@@ -73,6 +87,11 @@ struct BrowserView: View {
                 return
             }
             model.openExternalURL(url, decrypt: crypt)
+        }
+        .task(id: model.copiedPathsID) {
+            guard let id = model.copiedPathsID else { return }
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled, model.copiedPathsID == id { model.copiedPathsID = nil }
         }
         .quickLookPreview($model.preview)
         .sheet(item: $prompt) { prompt in
@@ -263,7 +282,7 @@ struct BrowserView: View {
                 TextField("搜索文件名或标签", text: $model.query)
                     .textFieldStyle(.plain)
                     .focused($searchFocused)
-                    .accessibilityLabel("按文件名或标签搜索当前文件夹")
+                    .accessibilityLabel("按名称或标签搜索当前文件夹及子文件夹")
                     .onExitCommand {
                         model.query = ""
                         searchFocused = false
@@ -289,6 +308,10 @@ struct BrowserView: View {
             }
             .keyboardShortcut("c", modifiers: [.command, .option])
             .disabled(model.selection.isEmpty)
+
+            ToolButton(title: String(localized: "在终端中打开当前文件夹"), symbol: "terminal") {
+                Task { await model.openInTerminal() }
+            }
 
             ToolButton(title: String(localized: "新建文件夹"), symbol: "folder.badge.plus", action: createFolder)
                 .keyboardShortcut("n", modifiers: [.command, .shift])
@@ -335,10 +358,10 @@ struct BrowserView: View {
             .accessibilityLabel("排序与更多操作")
 
             ToolButton(title: showInspector ? String(localized: "隐藏详细信息") : String(localized: "显示详细信息"), symbol: "sidebar.right", active: showInspector) {
-                withAnimation(panelAnimation) { showInspector.toggle() }
+                showInspector.toggle()
             }
             ToolButton(title: showPathHistory ? String(localized: "隐藏历史路径") : String(localized: "显示历史路径"), symbol: "rectangle.bottomthird.inset.filled", active: showPathHistory) {
-                withAnimation(panelAnimation) { showPathHistory.toggle() }
+                showPathHistory.toggle()
             }
         }
         .padding(.horizontal, 15)
@@ -387,11 +410,11 @@ struct BrowserView: View {
                     Button("重新加载", action: model.refresh)
                 }
             } else if model.isLoading && model.items.isEmpty {
-                ProgressView("正在读取…")
+                ProgressView(model.searchTerm.isEmpty ? String(localized: "正在读取…") : String(localized: "正在搜索子文件夹…"))
                     .controlSize(.small)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.items.isEmpty {
-                if model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if model.searchTerm.isEmpty {
                     emptyState(symbol: "folder", title: String(localized: "文件夹为空"), detail: String(localized: "这里还没有可见的文件。")) {
                         Button("新建文件夹", action: createFolder)
                             .disabled(model.isWorking)
@@ -450,6 +473,7 @@ struct BrowserView: View {
                             .truncationMode(.middle)
                             .layoutPriority(1)
                         if item.isHidden { hiddenBadge }
+                        if !model.searchTerm.isEmpty { searchLocation(item) }
                         if !item.tags.isEmpty {
                             Text(item.tags.joined(separator: " · "))
                                 .font(.caption)
@@ -462,7 +486,7 @@ struct BrowserView: View {
                         .foregroundStyle(item.isFolder ? BrowserColors.accent : Color.secondary)
                         .frame(width: 19)
                 }
-                .help(([item.name] + item.tags).joined(separator: " · "))
+                .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
             }
             .width(min: 125, ideal: 260)
             TableColumn("修改日期") { (item: FileItem) in
@@ -519,6 +543,7 @@ struct BrowserView: View {
                                 .lineLimit(2)
                                 .multilineTextAlignment(.center)
                                 .truncationMode(.middle)
+                            if !model.searchTerm.isEmpty { searchLocation(item) }
                             if !item.tags.isEmpty {
                                 Text(item.tags.joined(separator: " · "))
                                     .font(.caption2)
@@ -528,7 +553,7 @@ struct BrowserView: View {
                         }
                         .padding(8)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 100)
+                        .frame(height: model.searchTerm.isEmpty ? 100 : 124)
                         .background(
                             selected ? BrowserColors.accent.opacity(0.16) : BrowserColors.control.opacity(0.62),
                             in: RoundedRectangle(cornerRadius: 10)
@@ -545,12 +570,20 @@ struct BrowserView: View {
                     })
                     .contextMenu { itemActions(selected ? model.selectedItems : [item]) }
                     .accessibilityAddTraits(selected ? .isSelected : [])
-                    .help(([item.name] + item.tags).joined(separator: " · "))
+                    .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
                 }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
         }
+    }
+
+    private func searchLocation(_ item: FileItem) -> some View {
+        Text(model.searchLocation(of: item))
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
     }
 
     private var hiddenBadge: some View {
@@ -639,6 +672,9 @@ struct BrowserView: View {
             if model.isWorking {
                 ProgressView().controlSize(.mini)
                 Text(model.workingMessage)
+            } else if model.isLoading && !model.searchTerm.isEmpty {
+                ProgressView().controlSize(.mini)
+                Text("正在搜索子文件夹…")
             } else if let status = model.status {
                 Text(status).lineLimit(1)
             }
