@@ -5,7 +5,9 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>zh-Hans</string>
     <key>CFBundleDisplayName</key>
-    <string>文件桌</string>
+    <string>FileDesktop</string>
+    <key>LSHasLocalizedDisplayName</key>
+    <true/>
     <key>CFBundleExecutable</key>
     <string>FileDesk</string>
     <key>CFBundleIconFile</key>
@@ -13,7 +15,7 @@
     <key>CFBundleIdentifier</key>
     <string>local.filedesk.app</string>
     <key>CFBundleName</key>
-    <string>文件桌</string>
+    <string>FileDesktop</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>NSServices</key>
@@ -24,7 +26,7 @@
             <key>NSMessage</key>
             <string>openFolderInFileDesk</string>
             <key>NSPortName</key>
-            <string>文件桌</string>
+            <string>FileDesktop</string>
             <key>NSSendFileTypes</key>
             <array><string>public.folder</string></array>
             <key>NSRequiredContext</key>
@@ -73,9 +75,9 @@
         </dict>
     </array>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
+    <string>1.0.0</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>1.0.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>

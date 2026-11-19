@@ -20,7 +20,12 @@ mkdir -p dist
 stage="$(mktemp -d "$project_dir/dist/.build.XXXXXX")"
 trap 'rm -rf "$stage"' EXIT
 
-bundle="$stage/文件桌.app"
+bundle_name="FileDesktop.app"
+# In-app updaters look for dist/文件桌.app and install it under the existing name.
+if [[ -n "${FILEDESK_VERSION:-}" ]]; then
+    bundle_name="文件桌.app"
+fi
+bundle="$stage/$bundle_name"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 install -m 755 "$binary_dir/FileDesk" "$bundle/Contents/MacOS/FileDesk"
 install -m 644 "$project_dir/scripts/Info.plist" "$bundle/Contents/Info.plist"
@@ -30,10 +35,15 @@ if [[ "$version" =~ ^v?((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; 
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BASH_REMATCH[1]}" "$bundle/Contents/Info.plist"
 fi
 install -m 644 "$project_dir/scripts/FileDesk.icns" "$bundle/Contents/Resources/FileDesk.icns"
+for language in en zh-Hans; do
+    resources="$bundle/Contents/Resources/$language.lproj"
+    mkdir -p "$resources"
+    install -m 644 "$project_dir/scripts/$language.lproj/InfoPlist.strings" "$resources/InfoPlist.strings"
+done
 codesign --force --sign - "$bundle"
 codesign --verify --strict "$bundle"
 
-destination="$project_dir/dist/文件桌.app"
+destination="$project_dir/dist/$bundle_name"
 if [[ -e "$destination" ]]; then
     mv "$destination" "$stage/previous.app"
 fi
