@@ -125,8 +125,7 @@ final class BrowserModel {
 
     func goToFolder(_ path: String) -> Bool {
         guard !path.isEmpty else { return false }
-        let expanded = (path as NSString).expandingTildeInPath
-        let url = URL(fileURLWithPath: expanded, isDirectory: true, relativeTo: directory).absoluteURL
+        let url = FileSystem.folderURL(path, relativeTo: directory)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
               isDirectory.boolValue else { return false }

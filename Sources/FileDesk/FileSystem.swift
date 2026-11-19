@@ -131,6 +131,42 @@ actor FileSystem {
         .fileSizeKey, .contentModificationDateKey, .isRegularFileKey, .isHiddenKey
     ]
 
+    static func folderURL(_ path: String, relativeTo directory: URL) -> URL {
+        URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true, relativeTo: directory).absoluteURL
+    }
+
+    static func folderCompletions(for path: String, relativeTo directory: URL, showHidden: Bool) async -> [String] {
+        guard !path.isEmpty, !Task.isCancelled else { return [] }
+        if path == "~" || path == ".." { return [path + "/"] }
+        let start = path.lastIndex(of: "/").map { path.index(after: $0) } ?? path.startIndex
+        let parent = String(path[..<start])
+        let prefix = String(path[start...])
+        let folder = parent.isEmpty ? directory : folderURL(parent, relativeTo: directory)
+        let manager = FileManager.default
+        guard let entries = try? manager.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: showHidden || prefix.hasPrefix(".") ? [] : [.skipsHiddenFiles]
+        ) else { return [] }
+
+        var matches: [String] = []
+        for url in entries {
+            if Task.isCancelled { return [] }
+            let name = url.lastPathComponent
+            guard prefix.isEmpty || name.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil else { continue }
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            var isDirectory: ObjCBool = false
+            if values?.isDirectory == true || (values?.isSymbolicLink == true &&
+                manager.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue) {
+                matches.append(name)
+            }
+        }
+        return matches.sorted {
+            if $0 == prefix { return $1 != prefix }
+            if $1 == prefix { return false }
+            return $0.localizedStandardCompare($1) == .orderedAscending
+        }.map { parent + $0 + "/" }
+    }
+
     func read(_ directory: URL, showHidden: Bool, sort: FileSort) throws -> [FileItem] {
         let urls = try manager.contentsOfDirectory(
             at: directory,

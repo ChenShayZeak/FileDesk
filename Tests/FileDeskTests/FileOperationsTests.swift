@@ -84,6 +84,29 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertEqual(visible.map(\.name), ["普通.txt"])
     }
 
+    func testFolderCompletionsPreserveTypedPathsAndOnlyOfferDirectories() async throws {
+        let base = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let manager = FileManager.default
+        for name in ["Daora", "Daora Test/子 目录", ".Hidden"] {
+            try manager.createDirectory(at: base.appending(path: name), withIntermediateDirectories: true)
+        }
+        try Data().write(to: base.appending(path: "Daora.txt"))
+        try manager.createSymbolicLink(at: base.appending(path: "Daora Link"), withDestinationURL: base.appending(path: "Daora"))
+        for (input, expected) in [
+            ("dao", ["Daora/", "Daora Link/", "Daora Test/"]),
+            (base.path + "/Daora Test/子", [base.path + "/Daora Test/子 目录/"]),
+            ("./Daora Test/", ["./Daora Test/子 目录/"]),
+            (".hi", [".Hidden/"]), ("~", ["~/"]), ("..", ["../"]),
+            ("", []), ("missing/", [])
+        ] {
+            let matches = await FileSystem.folderCompletions(for: input, relativeTo: base, showHidden: false)
+            XCTAssertEqual(matches, expected, input)
+        }
+        let visible = await FileSystem.folderCompletions(for: "./", relativeTo: base, showHidden: false)
+        XCTAssertFalse(visible.contains("./.Hidden/"))
+    }
+
     @MainActor
     func testGoToFolderResolvesPathsAndRejectsFilesWithoutChangingHistory() throws {
         let parent = try makeDirectory()

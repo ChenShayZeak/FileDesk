@@ -155,6 +155,9 @@ struct GoToFolderSheet: View {
     @FocusState private var pathFocused: Bool
     @State private var path = ""
     @State private var error: String?
+    @State private var suggestions: [String] = []
+    @State private var suggestedFor = ""
+    @State private var selected = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -163,6 +166,56 @@ struct GoToFolderSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .focused($pathFocused)
                 .onChange(of: path) { error = nil }
+                .onKeyPress(keys: [.tab, .downArrow, .upArrow]) { key in
+                    guard key.modifiers.isDisjoint(with: [.command, .control, .option, .shift]),
+                          suggestedFor == path, suggestions.indices.contains(selected) else {
+                        return .ignored
+                    }
+                    switch key.key {
+                    case .tab: path = suggestions[selected]
+                    case .downArrow: selected = min(selected + 1, suggestions.count - 1)
+                    default: selected = max(selected - 1, 0)
+                    }
+                    return .handled
+                }
+                .task(id: path) {
+                    let input = path
+                    let matches = await FileSystem.folderCompletions(for: input, relativeTo: model.directory, showHidden: model.showHidden)
+                    guard !Task.isCancelled, path == input else { return }
+                    suggestions = matches
+                    selected = 0
+                    suggestedFor = input
+                }
+            if suggestedFor == path, !suggestions.isEmpty {
+                ScrollViewReader { reader in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(suggestions.indices, id: \.self) { index in
+                                Button {
+                                    path = suggestions[index]
+                                    pathFocused = true
+                                } label: {
+                                    Label(suggestions[index], systemImage: "folder")
+                                        .lineLimit(1)
+                                        .truncationMode(.head)
+                                        .padding(.horizontal, 6)
+                                        .frame(maxWidth: .infinity, minHeight: 25, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .background(index == selected ? BrowserColors.accent.opacity(0.13) : .clear)
+                                .accessibilityAddTraits(index == selected ? .isSelected : [])
+                            }
+                        }
+                    }
+                    .frame(height: CGFloat(min(5, suggestions.count)) * 25)
+                    .onChange(of: selected) { reader.scrollTo(selected) }
+                    .onChange(of: suggestedFor) { reader.scrollTo(0) }
+                }
+                Text("↑ ↓ 选择文件夹，Tab 补全，回车前往。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let error {
                 Text(error).foregroundStyle(.red)
             }
