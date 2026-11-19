@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum BrowserColors {
-    static let accent = Color(nsColor: NSColor(name: nil) { appearance in
+    static let violet = Color(nsColor: NSColor(name: nil) { appearance in
         if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
             return NSColor(srgbRed: 0.73, green: 0.66, blue: 1, alpha: 1)
         }
@@ -79,6 +79,7 @@ struct SlidingPanel: Layout {
 }
 
 struct ToolButton: View {
+    @Environment(\.browserAccent) private var accent
     let title: String
     let symbol: String
     var active = false
@@ -88,9 +89,9 @@ struct ToolButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(active ? BrowserColors.accent : Color.primary)
+                .foregroundStyle(active ? accent : Color.primary)
                 .frame(width: 29, height: 28)
-                .background(active ? BrowserColors.accent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .background(active ? accent.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
@@ -100,6 +101,7 @@ struct ToolButton: View {
 }
 
 struct FileInspector: View {
+    @Environment(\.browserAccent) private var accent
     let items: [FileItem]
     let isWorking: Bool
     let open: (FileItem) -> Void
@@ -168,7 +170,7 @@ struct FileInspector: View {
         VStack(spacing: 9) {
             Image(systemName: symbol)
                 .font(.system(size: 37, weight: .light))
-                .foregroundStyle(BrowserColors.accent)
+                .foregroundStyle(accent)
                 .accessibilityHidden(true)
             Text(title)
                 .font(.headline)
@@ -182,7 +184,7 @@ struct FileInspector: View {
         .multilineTextAlignment(.center)
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 143)
-        .background(BrowserColors.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+        .background(accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func info(_ title: String, _ value: String) -> some View {
@@ -215,6 +217,7 @@ struct BrowserPrompt: Identifiable {
 }
 
 struct GoToFolderSheet: View {
+    @Environment(\.browserAccent) private var accent
     let model: BrowserModel
     @Environment(\.dismiss) private var dismiss
     @FocusState private var pathFocused: Bool
@@ -269,7 +272,7 @@ struct GoToFolderSheet: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .background(index == selected ? BrowserColors.accent.opacity(0.13) : .clear)
+                            .background(index == selected ? accent.opacity(0.13) : .clear)
                             .accessibilityAddTraits(index == selected ? .isSelected : [])
                         }
                     }

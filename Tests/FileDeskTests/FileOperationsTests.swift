@@ -217,6 +217,48 @@ final class FileOperationsTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testRenamedEncryptedFilesAreRecognizedAndStillAuthenticate() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plain = directory.appendingPathComponent("原文.txt")
+        let bytes = Data("原始内容".utf8)
+        try bytes.write(to: plain)
+        let password = "test-password"
+        let encrypted = try await encrypt(plain, password: password)
+        let ciphertext = try Data(contentsOf: encrypted)
+        let result = await fs.perform(.rename(source: encrypted, name: "新名称"))
+        XCTAssertEqual(result.outputName, "新名称.txt.filedesk")
+        let renamed = directory.appendingPathComponent("新名称.txt.filedesk")
+        XCTAssertEqual(try Data(contentsOf: renamed), ciphertext)
+        let initial = try await sessions.open(renamed, password: password)
+        XCTAssertEqual(initial.text, "原始内容")
+        _ = try await sessions.close(draft: nil)
+
+        let model = BrowserModel()
+        for name in ["已改名.txt", "没有后缀"] {
+            let external = directory.appendingPathComponent(name)
+            try FileManager.default.moveItem(at: renamed, to: external)
+            let listed = try await fs.read(directory, showHidden: true, sort: .name)
+            let item = try XCTUnwrap(listed.first { $0.name == name })
+            XCTAssertTrue(item.checkingEncryption().isEncrypted)
+            var routed = false
+            model.openExternalURL(external) { routed = $0.isEncrypted }
+            XCTAssertTrue(routed)
+            do {
+                _ = try await sessions.open(external, password: "wrong")
+                XCTFail("Incorrect password accepted")
+            } catch FileCipherError.authenticationFailed {}
+            let session = try await sessions.open(external, password: password)
+            XCTAssertEqual(session.title, name)
+            XCTAssertEqual(session.text, "原始内容")
+            _ = try await sessions.close(draft: nil)
+            XCTAssertEqual(try Data(contentsOf: external), ciphertext)
+            try FileManager.default.moveItem(at: external, to: renamed)
+        }
+        XCTAssertFalse(FileSystem.item(at: plain).checkingEncryption().isEncrypted)
+    }
+
     func testPostEncryptionCleanupPreservesFilesChangedAfterEncryption() async throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

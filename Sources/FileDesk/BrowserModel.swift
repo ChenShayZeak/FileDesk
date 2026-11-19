@@ -35,9 +35,10 @@ final class BrowserModel {
     private(set) var recentPaths: [String] {
         didSet { preferences.set(recentPaths, forKey: "recentPaths") }
     }
-    private(set) var recentFilePaths: [String] {
-        didSet { preferences.set(recentFilePaths, forKey: "recentFilePaths") }
+    private var recentFiles: [RecentFile] {
+        didSet { RecentFile.save(recentFiles, to: preferences) }
     }
+    var recentFilePaths: [String] { recentFiles.map(\.path) }
     private(set) var items: [FileItem] = []
     private(set) var customFavorites: [Favorite] = []
     private(set) var isLoading = false
@@ -46,7 +47,12 @@ final class BrowserModel {
     private(set) var readError: String?
     private(set) var status: String?
     var copiedPathsID: UUID?
-    var selection: Set<URL> = []
+    var selection: Set<URL> = [] {
+        didSet {
+            let selected = items.filter { selection.contains($0.id) }
+            selectedItems = selected.count == 1 ? [selected[0].checkingEncryption()] : selected
+        }
+    }
     var preview: URL?
     var notice: FileNotice?
     private(set) var session: EncryptedFileSession?
@@ -81,7 +87,7 @@ final class BrowserModel {
         self.home = home
         directory = home
         recentPaths = preferences.stringArray(forKey: "recentPaths") ?? []
-        recentFilePaths = preferences.stringArray(forKey: "recentFilePaths") ?? []
+        recentFiles = RecentFile.load(from: preferences)
         showHidden = preferences.object(forKey: "showHidden") as? Bool ?? true
         history = [home]
         sort = preferences.string(forKey: "sort").flatMap(FileSort.init(rawValue:)) ?? .name
@@ -109,7 +115,7 @@ final class BrowserModel {
     }
 
     var directoryTitle: String { title(for: directory) }
-    var selectedItems: [FileItem] { items.filter { selection.contains($0.id) } }
+    private(set) var selectedItems: [FileItem] = []
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex + 1 < history.count }
     var canGoUp: Bool { directory.path != "/" }
@@ -161,7 +167,7 @@ final class BrowserModel {
 
     func openExternalURL(_ url: URL, decrypt: (FileItem) -> Void) {
         if url.isFileURL {
-            let item = FileSystem.item(at: url)
+            let item = FileSystem.item(at: url).checkingEncryption()
             if item.isFolder {
                 navigate(to: item.url)
                 return
@@ -331,16 +337,49 @@ final class BrowserModel {
     }
 
     private func recordOpenedFile(_ url: URL) {
-        let path = url.standardizedFileURL.path
-        guard recentFilePaths.first != path else { return }
-        recentFilePaths = [path] + recentFilePaths.filter { $0 != path }
+        let entry = RecentFile(url)
+        recentFiles = [entry] + recentFiles.filter { $0.path != entry.path }
     }
 
     func removeRecentFile(_ path: String) {
-        recentFilePaths.removeAll { $0 == path }
+        recentFiles.removeAll { $0.path == path }
+    }
+
+    func refreshRecentFiles() async {
+        let snapshot = recentFiles
+        let updated = await RecentFile.refresh(snapshot)
+        if recentFiles == snapshot, updated != snapshot { recentFiles = updated }
+    }
+
+    func refreshBrowser() {
+        refresh()
+        Task { await refreshRecentFiles() }
+    }
+
+    private func renamedRecentFiles(from source: URL, to target: URL) {
+        let oldPath = source.standardizedFileURL.path
+        let mapped = recentFiles.map { entry in
+            guard entry.path == oldPath || entry.path.hasPrefix(oldPath + "/") else { return entry }
+            let path = target.path + String(entry.path.dropFirst(oldPath.count))
+            return RecentFile(URL(fileURLWithPath: path, isDirectory: false))
+        }
+        let updated = RecentFile.uniquePaths(mapped)
+        if updated != recentFiles { recentFiles = updated }
     }
 
     func recentFile(at path: String) -> FileItem? {
+        guard let index = recentFiles.firstIndex(where: { $0.path == path }) else { return nil }
+        guard let resolved = recentFiles[index].resolved() else {
+            removeRecentFile(path)
+            notice = FileNotice(title: String(localized: "无法打开项目"), message: path)
+            return nil
+        }
+        if recentFiles[index] != resolved {
+            var updated = recentFiles
+            updated[index] = resolved
+            recentFiles = RecentFile.uniquePaths(updated)
+        }
+        let path = resolved.path
         let item = FileSystem.item(at: URL(fileURLWithPath: path, isDirectory: false))
         guard !item.isFolder, FileManager.default.fileExists(atPath: path) else {
             notice = FileNotice(title: String(localized: "无法打开项目"), message: path)
@@ -500,6 +539,14 @@ final class BrowserModel {
             guard let self else { return }
             isWorking = false
             workingMessage = String(localized: "正在处理文件…")
+            if !result.trashedPaths.isEmpty {
+                recentFiles.removeAll { entry in
+                    result.trashedPaths.contains { entry.path == $0 || entry.path.hasPrefix($0 + "/") }
+                }
+            }
+            if case let .rename(source, _) = operation, let name = result.outputName {
+                renamedRecentFiles(from: source, to: source.deletingLastPathComponent().appendingPathComponent(name))
+            }
             if let outputName = result.outputName {
                 status = String(localized: "\(operation.completion)「\(outputName)」")
             } else if result.completed > 0 {

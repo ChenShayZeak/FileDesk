@@ -14,8 +14,17 @@ struct FileItem: Identifiable, Sendable {
     let fileExtension: String
 
     var id: URL { url }
-    var isEncrypted: Bool { isRegularFile && fileExtension == CipherMode.fileExtension }
-    var isArchive: Bool { isRegularFile && ArchiveExtractor.extensions.contains(fileExtension) }
+    private(set) var hasEncryptedHeader = false
+    var isEncrypted: Bool { isRegularFile && (fileExtension == CipherMode.fileExtension || hasEncryptedHeader) }
+
+    // Probe on single-file actions, so listing or searching a directory never reads file contents.
+    func checkingEncryption() -> Self {
+        guard isRegularFile, !isEncrypted else { return self }
+        var item = self
+        item.hasEncryptedHeader = FileCipher.hasHeader(at: url)
+        return item
+    }
+    var isArchive: Bool { isRegularFile && !isEncrypted && ArchiveExtractor.extensions.contains(fileExtension) }
 
     func matches(_ term: String) -> Bool {
         name.localizedStandardContains(term) || tags.contains { $0.localizedStandardContains(term) }
@@ -94,6 +103,7 @@ enum FileOperation: Sendable {
 struct OperationResult: Sendable {
     var completed = 0
     var failures: [String] = []
+    var trashedPaths: [String] = []
     var outputName: String?
     var encryptedCopy: EncryptedCopy?
     var archiveNeedingSevenZip: URL?
@@ -264,13 +274,25 @@ actor FileSystem {
             }
         case .rename(let source, let name):
             attempt(name) {
-                let target = try namedURL(parent: source.deletingLastPathComponent(), name: name)
+                let parent = source.deletingLastPathComponent()
+                var target = try namedURL(parent: parent, name: name)
+                if Self.item(at: source).checkingEncryption().isEncrypted {
+                    let oldName = source.pathExtension.lowercased() == CipherMode.fileExtension
+                        ? source.deletingPathExtension() : source
+                    if target.pathExtension.lowercased() != CipherMode.fileExtension {
+                        if target.pathExtension.isEmpty, !oldName.pathExtension.isEmpty {
+                            target.appendPathExtension(oldName.pathExtension)
+                        }
+                        target.appendPathExtension(CipherMode.fileExtension)
+                    }
+                }
                 guard source.path != target.path else { return }
                 // On case-insensitive volumes the new spelling can refer to the source itself.
                 if entryExists(target), !(try isAlternateSpelling(of: source, at: target)) {
                     throw FileOperationError.destinationExists(name)
                 }
                 try manager.moveItem(at: source, to: target)
+                result.outputName = target.lastPathComponent
             }
         case .copy(let sources, let destination):
             for source in sources {
@@ -290,6 +312,7 @@ actor FileSystem {
             for source in sources {
                 attempt(source.lastPathComponent) {
                     try manager.trashItem(at: source, resultingItemURL: nil)
+                    result.trashedPaths.append(source.standardizedFileURL.path)
                 }
             }
         case .setTags(let folder, let tags):
@@ -361,6 +384,7 @@ actor FileSystem {
                 if let error { throw error }
                 guard let outcome else { throw CocoaError(.fileWriteUnknown) }
                 try outcome.get()
+                result.trashedPaths.append(copy.original.standardizedFileURL.path)
             }
         }
         return result

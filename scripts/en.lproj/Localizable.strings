@@ -222,3 +222,18 @@
 "从最近使用中移除" = "Remove from Recents";
 "隐藏左侧栏" = "Hide Sidebar";
 "显示左侧栏" = "Show Sidebar";
+
+"设置…" = "Settings…";
+"界面语言" = "Interface language";
+"主题颜色" = "Theme color";
+"跟随系统" = "System default";
+"更改语言后，退出并重新打开文件桌即可生效。" = "Quit and reopen FileDesktop to apply the new language.";
+"紫色" = "Purple";
+"绿色" = "Green";
+"蓝色" = "Blue";
+"橙色" = "Orange";
+"外观模式" = "Appearance";
+"白天模式" = "Light";
+"夜间模式" = "Dark";
+"自定义" = "Custom";
+"自定义颜色" = "Custom color";

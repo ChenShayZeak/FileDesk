@@ -48,6 +48,15 @@ enum FileCipher {
     private static let chunkLength = 1_048_576
     private static let tagLength = 16
 
+    static func hasHeader(at file: URL) -> Bool {
+        let fd = open(file.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard fd >= 0 else { return false }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        var info = stat()
+        guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return false }
+        return (try? handle.read(upToCount: magic.count)) == magic
+    }
+
     static func requireRegularFile(_ file: URL) throws {
         let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .isPackageKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true, values.isPackage != true else {

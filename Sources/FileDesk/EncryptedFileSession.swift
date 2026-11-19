@@ -42,7 +42,8 @@ actor EncryptedFileSessions {
         guard active == nil else { throw EncryptedSessionError.alreadyOpen }
         let encryptedFile = try validateEncryptedFile(encryptedFile)
         let id = UUID()
-        let name = encryptedFile.deletingPathExtension().lastPathComponent
+        let name = encryptedFile.pathExtension.lowercased() == CipherMode.fileExtension
+            ? encryptedFile.deletingPathExtension().lastPathComponent : encryptedFile.lastPathComponent
         guard !name.isEmpty, name != ".", name != ".." else { throw FileCipherError.invalidFormat }
         let folder = try privateDirectory(in: manager.temporaryDirectory, id: id)
         let file = folder.appendingPathComponent(name, isDirectory: false)
@@ -183,17 +184,15 @@ actor EncryptedFileSessions {
 
     private func validateEncryptedFile(_ file: URL) throws -> URL {
         let file = URL(fileURLWithPath: file.path, isDirectory: false)
-        guard file.pathExtension.lowercased() == CipherMode.fileExtension else {
-            throw FileCipherError.invalidFormat
-        }
         try FileCipher.requireRegularFile(file)
+        guard FileCipher.hasHeader(at: file) else { throw FileCipherError.invalidFormat }
         return file
     }
 
     private func editableText(at file: URL) throws -> (text: String, hasBOM: Bool)? {
         let values = try file.resourceValues(forKeys: [.fileSizeKey])
         guard let size = values.fileSize, size <= 2_097_152,
-              let type = UTType(filenameExtension: file.pathExtension), type.conforms(to: .text) else {
+              file.pathExtension.isEmpty || UTType(filenameExtension: file.pathExtension)?.conforms(to: .text) == true else {
             return nil
         }
 
@@ -201,6 +200,10 @@ actor EncryptedFileSessions {
         let hasBOM = data.starts(with: [0xef, 0xbb, 0xbf])
         guard let text = String(data: hasBOM ? Data(data.dropFirst(3)) : data, encoding: .utf8) else {
             return nil
+        }
+        if file.pathExtension.isEmpty {
+            let binaryControls = CharacterSet.controlCharacters.subtracting(.whitespacesAndNewlines)
+            guard text.rangeOfCharacter(from: binaryControls) == nil else { return nil }
         }
         return (text, hasBOM)
     }

@@ -9,6 +9,7 @@ struct BrowserView: View {
     @AppStorage("showInspector") private var showInspector = true
     @AppStorage("gridLayout") private var gridLayout = false
     @AppStorage("showPathHistory") private var showPathHistory = false
+    @Environment(\.browserAccent) private var accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
     @State private var prompt: BrowserPrompt?
@@ -31,12 +32,11 @@ struct BrowserView: View {
         }
         .padding(8)
         .background {
-            LinearGradient(colors: [BrowserColors.accent.opacity(0.09), .clear],
+            LinearGradient(colors: [accent.opacity(0.09), .clear],
                            startPoint: .topLeading, endPoint: .center)
                 .background(Color(nsColor: .windowBackgroundColor))
                 .ignoresSafeArea()
         }
-        .tint(BrowserColors.accent)
         .onOpenURL { url in
             guard prompt == nil, trashItems.isEmpty, model.session == nil, !model.isWorking else {
                 model.notice = FileNotice(title: String(localized: "暂时无法打开项目"), message: String(localized: "请先完成当前操作，然后重新打开「\(url.lastPathComponent)」。"))
@@ -205,7 +205,7 @@ struct BrowserView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .frame(width: 34, height: 34)
                     .foregroundStyle(.white)
-                    .background(BrowserColors.accent, in: RoundedRectangle(cornerRadius: 10))
+                    .background(accent, in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityHidden(true)
                 Text("文件桌")
                     .font(.system(size: 16, weight: .semibold))
@@ -300,8 +300,8 @@ struct BrowserView: View {
             }
             .padding(.horizontal, 9)
             .frame(height: 33)
-            .foregroundStyle(active ? BrowserColors.accent : Color.primary)
-            .background(active ? BrowserColors.accent.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .foregroundStyle(active ? accent : Color.primary)
+            .background(active ? accent.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -381,6 +381,9 @@ struct BrowserView: View {
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(model.isWorking || model.readError != nil)
 
+            ToolButton(title: String(localized: "刷新"), symbol: "arrow.clockwise", action: model.refreshBrowser)
+                .keyboardShortcut("r", modifiers: .command)
+
             Menu {
                 Picker("排序方式", selection: $model.sort) {
                     ForEach(FileSort.allCases) { sort in
@@ -389,10 +392,9 @@ struct BrowserView: View {
                 }
                 Toggle("显示隐藏文件", isOn: $model.showHidden)
                     .keyboardShortcut(".", modifiers: [.command, .shift])
-                Button("刷新", action: model.refresh)
-                    .keyboardShortcut("r", modifiers: .command)
                 Button("选择文件夹…") { model.chooseDirectory() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
+                SettingsLink { Label("设置…", systemImage: "gearshape") }
                 Menu("默认打开方式") {
                     Button("文件夹用文件桌打开…") {
                         Task { await model.setDefaultApp(Bundle.main.bundleURL, for: .folder) }
@@ -554,7 +556,7 @@ struct BrowserView: View {
                     }
                 } icon: {
                     Image(systemName: item.symbol)
-                        .foregroundStyle(item.isFolder ? BrowserColors.accent : Color.secondary)
+                        .foregroundStyle(item.isFolder ? accent : Color.secondary)
                         .frame(width: 19)
                 }
                 .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
@@ -580,7 +582,7 @@ struct BrowserView: View {
                     .disabled(model.isWorking)
                 Button("粘贴文件", action: model.paste)
                     .disabled(model.isWorking)
-                Button("刷新", action: model.refresh)
+                Button("刷新", action: model.refreshBrowser)
             } else {
                 itemActions(model.items.filter { selection.contains($0.id) })
             }
@@ -607,7 +609,7 @@ struct BrowserView: View {
                         VStack(spacing: 10) {
                             Image(systemName: item.symbol)
                                 .font(.system(size: 34, weight: .light))
-                                .foregroundStyle(item.isFolder ? BrowserColors.accent : Color.secondary)
+                                .foregroundStyle(item.isFolder ? accent : Color.secondary)
                                 .accessibilityHidden(true)
                             Text(item.name)
                                 .font(.system(size: 11))
@@ -626,7 +628,7 @@ struct BrowserView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: model.searchTerm.isEmpty ? 100 : 124)
                         .background(
-                            selected ? BrowserColors.accent.opacity(0.16) : BrowserColors.control.opacity(0.62),
+                            selected ? accent.opacity(0.16) : BrowserColors.control.opacity(0.62),
                             in: RoundedRectangle(cornerRadius: 10)
                         )
                         .overlay(alignment: .topTrailing) {
@@ -669,7 +671,7 @@ struct BrowserView: View {
 
     @ViewBuilder
     private func itemActions(_ items: [FileItem]) -> some View {
-        if items.count == 1, let item = items.first {
+        if items.count == 1, let item = items.first?.checkingEncryption() {
             if !item.isEncrypted {
                 Button("打开") { open(item) }
                 Button("快速预览") { showPreview(item) }
@@ -797,7 +799,7 @@ struct BrowserView: View {
         VStack(spacing: 9) {
             Image(systemName: symbol)
                 .font(.system(size: 32, weight: .light))
-                .foregroundStyle(BrowserColors.accent)
+                .foregroundStyle(accent)
                 .accessibilityHidden(true)
             Text(title).font(.headline)
             Text(detail).font(.subheadline).foregroundStyle(.secondary)
@@ -826,6 +828,7 @@ struct BrowserView: View {
     }
 
     private func open(_ item: FileItem) {
+        let item = item.checkingEncryption()
         if item.isEncrypted {
             crypt(item)
         } else {

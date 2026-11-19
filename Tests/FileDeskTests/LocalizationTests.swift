@@ -1,7 +1,23 @@
 import Foundation
 import XCTest
+@testable import FileDesk
 
 final class LocalizationTests: XCTestCase {
+    func testLanguageSelectionUsesOnlyTheAppDomain() throws {
+        let domain = UUID().uuidString
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { preferences.removePersistentDomain(forName: domain) }
+        XCTAssertEqual(AppLanguage.selection(in: preferences, domain: domain), .system)
+        for language in [AppLanguage.english, .chinese] {
+            language.apply(to: preferences)
+            XCTAssertEqual(preferences.stringArray(forKey: "AppleLanguages"), [language.rawValue])
+            XCTAssertEqual(AppLanguage.selection(in: preferences, domain: domain), language)
+        }
+        AppLanguage.system.apply(to: preferences)
+        XCTAssertNil(preferences.persistentDomain(forName: domain)?["AppleLanguages"])
+        XCTAssertEqual(AppLanguage.selection(in: preferences, domain: domain), .system)
+    }
+
     func testTranslationsCoverBothLanguagesAndFormatRuntimeValues() throws {
         let resources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

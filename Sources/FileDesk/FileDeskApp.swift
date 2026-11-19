@@ -5,20 +5,29 @@ import SwiftUI
 @MainActor
 struct FileDeskApp: App {
     @NSApplicationDelegateAdaptor(FileDeskAppDelegate.self) private var appDelegate
+    @AppStorage("browserTheme") private var theme = BrowserTheme.violet
+    @AppStorage("browserCustomColor") private var customColorData = Data()
+    @AppStorage("browserAppearance") private var appearance = AppAppearance.system
     @State private var model = BrowserModel()
 
     var body: some Scene {
         Window("文件桌", id: "file-desk") {
             BrowserView(model: model)
+                .environment(\.browserAccent, theme.color(customData: customColorData))
+                .tint(theme.color(customData: customColorData))
                 .frame(minWidth: 820, minHeight: 540)
                 .handlesExternalEvents(preferring: ["file:"], allowing: ["file:"])
                 .task {
                     appDelegate.model = model
                     model.refresh()
+                    await model.refreshRecentFiles()
                 }
         }
         .defaultSize(width: 1120, height: 720)
         .windowStyle(.hiddenTitleBar)
+        .onChange(of: appearance, initial: true) { _, appearance in
+            NSApp.appearance = appearance.nativeAppearance
+        }
         .handlesExternalEvents(matching: ["file:"])
         .commands {
             CommandGroup(after: .appInfo) {
@@ -31,6 +40,11 @@ struct FileDeskApp: App {
                     .disabled(model.isWorking || model.session != nil)
             }
         }
+
+        Settings {
+            AppSettings(theme: $theme, customColorData: $customColorData, appearance: $appearance)
+                .tint(theme.color(customData: customColorData))
+        }
     }
 }
 
@@ -40,6 +54,10 @@ final class FileDeskAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.servicesProvider = self
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { await model?.refreshRecentFiles() }
     }
 
     @objc(openFolderInFileDesk:userData:error:)
