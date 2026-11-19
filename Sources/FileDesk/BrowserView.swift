@@ -102,6 +102,9 @@ struct BrowserView: View {
                 Button("将原文件移到废纸篓", role: .destructive) {
                     model.perform(.trashEncryptedOriginal(copy))
                 }
+            } else if let source = notice.archiveNeedingSevenZip {
+                Button("取消", role: .cancel) {}
+                Button("安装并解压") { model.perform(.extract(source, installIfMissing: true)) }
             } else {
                 Button("好", role: .cancel) {}
             }
@@ -573,7 +576,7 @@ struct BrowserView: View {
             Text(count == 0 ? "\(model.items.count) 个项目" : "已选中 \(count) 个项目")
             if model.isWorking {
                 ProgressView().controlSize(.mini)
-                Text("正在处理文件…")
+                Text(model.workingMessage)
             } else if let status = model.status {
                 Text(status).lineLimit(1)
             }
@@ -582,9 +585,13 @@ struct BrowserView: View {
             Button("解压", systemImage: "archivebox") {
                 if let archive { model.perform(.extract(archive.url)) }
             }
-            .buttonStyle(.borderless)
-            .help("将选中的压缩包解压到同一目录")
-            .disabled(archive?.isArchive != true || model.isWorking || browserDialogPresented)
+            .buttonStyle(.borderedProminent)
+            .tint(.black)
+            .foregroundStyle(.white)
+            .controlSize(.small)
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .help("解压到同一目录（⌘⇧E）")
+            .disabled(archive?.isArchive != true || model.isWorking || browserDialogPresented || model.preview != nil)
             ToolButton(title: "移到废纸篓…", symbol: "trash") { trashItems = model.selectedItems }
                 .keyboardShortcut(.delete, modifiers: .command)
                 .disabled(model.selection.isEmpty || model.isWorking || searchFocused ||

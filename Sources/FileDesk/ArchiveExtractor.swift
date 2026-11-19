@@ -11,12 +11,8 @@ enum ArchiveExtractor {
         return ["", ".", ".."].contains(stem) || stem == name ? name + " 解压" : stem
     }
 
-    static func extract(_ source: URL, into destination: URL) throws {
+    static func extract(_ source: URL, into destination: URL, using tool: String) throws {
         let manager = FileManager.default
-        let candidates = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"]
-        guard let tool = candidates.first(where: manager.isExecutableFile(atPath:)) else {
-            throw ArchiveError("找不到 7-Zip。请安装 macOS 版 7zz，或运行 brew install sevenzip 后重试。")
-        }
         try manager.createDirectory(at: destination, withIntermediateDirectories: false)
 
         if tarSuffixes.contains(where: { source.lastPathComponent.lowercased().hasSuffix($0) }) {

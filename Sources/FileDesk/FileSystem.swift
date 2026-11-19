@@ -70,7 +70,7 @@ enum FileOperation: Sendable {
     case trash(sources: [URL])
     case setTags(folder: URL, tags: [String])
     case encrypt(source: URL, password: String)
-    case extract(URL)
+    case extract(URL, installIfMissing: Bool = false)
     case trashEncryptedOriginal(EncryptedCopy)
 
     var completion: String {
@@ -92,6 +92,7 @@ struct OperationResult: Sendable {
     var failures: [String] = []
     var outputName: String?
     var encryptedCopy: EncryptedCopy?
+    var archiveNeedingSevenZip: URL?
 }
 
 struct EncryptedCopy: Sendable {
@@ -122,6 +123,8 @@ private enum FileOperationError: LocalizedError {
 }
 
 actor FileSystem {
+    private let sevenZip: SevenZip
+    init(sevenZip: SevenZip = SevenZip()) { self.sevenZip = sevenZip }
     private let manager = FileManager()
     private static let keys: Set<URLResourceKey> = [
         .isDirectoryKey, .isPackageKey, .isSymbolicLinkKey, .localizedTypeDescriptionKey,
@@ -162,7 +165,7 @@ actor FileSystem {
         )
     }
 
-    func perform(_ operation: FileOperation) -> OperationResult {
+    func perform(_ operation: FileOperation) async -> OperationResult {
         var result = OperationResult()
 
         func attempt(_ label: String, _ action: () throws -> Void) {
@@ -218,7 +221,24 @@ actor FileSystem {
                 guard values.isDirectory == true else { throw CocoaError(.fileReadUnknown) }
                 try (currentFolder as NSURL).setResourceValue(tags, forKey: .tagNamesKey)
             }
-        case .extract(let source):
+        case .extract(let source, let installIfMissing):
+            guard Self.item(at: source).isArchive else {
+                result.failures.append(FileOperationError.unsupportedArchive.localizedDescription)
+                return result
+            }
+            let tool: String
+            if let installed = sevenZip.executable {
+                tool = installed
+            } else if installIfMissing {
+                do { tool = try await sevenZip.install() }
+                catch {
+                    result.failures.append("安装 7-Zip 失败：\(error.localizedDescription)")
+                    return result
+                }
+            } else {
+                result.archiveNeedingSevenZip = source
+                return result
+            }
             attempt(source.lastPathComponent) {
                 guard Self.item(at: source).isArchive else { throw FileOperationError.unsupportedArchive }
                 let parent = source.deletingLastPathComponent()
@@ -229,7 +249,7 @@ actor FileSystem {
                     target = parent.appendingPathComponent("\(name) \(suffix)", isDirectory: true)
                     suffix += 1
                 }
-                try withStagedOutput(target) { try ArchiveExtractor.extract(source, into: $0) }
+                try withStagedOutput(target) { try ArchiveExtractor.extract(source, into: $0, using: tool) }
                 result.outputName = target.lastPathComponent
             }
         case .encrypt(let source, let password):

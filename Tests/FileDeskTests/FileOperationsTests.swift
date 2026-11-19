@@ -6,6 +6,24 @@ final class FileOperationsTests: XCTestCase {
     private let fs = FileSystem()
     private let sessions = EncryptedFileSessions()
 
+    func testMissingSevenZipRequestsConsentBeforeInstallingOrExtracting() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let tools = SevenZip(systemPaths: [], root: directory.appending(path: "Tools"))
+        let fileSystem = FileSystem(sevenZip: tools)
+        let source = directory.appending(path: "资料.zip")
+        try Data().write(to: source)
+        let result = await fileSystem.perform(.extract(source))
+        XCTAssertEqual(result.archiveNeedingSevenZip, source)
+        XCTAssertEqual(result.completed, 0)
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["资料.zip"])
+
+        XCTAssertThrowsError(try tools.install(packageAt: source))
+        XCTAssertNil(tools.executable)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tools.root.path))
+    }
+
     func testQuickExtractUnpacksZipAndTarGzWithoutOverwriting() async throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

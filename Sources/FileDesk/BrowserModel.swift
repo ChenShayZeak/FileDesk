@@ -16,6 +16,7 @@ struct FileNotice: Identifiable {
     let title: String
     let message: String
     var encryptedCopy: EncryptedCopy? = nil
+    var archiveNeedingSevenZip: URL? = nil
 }
 
 @MainActor
@@ -35,6 +36,7 @@ final class BrowserModel {
     private(set) var customFavorites: [Favorite] = []
     private(set) var isLoading = false
     private(set) var isWorking = false
+    private(set) var workingMessage = "正在处理文件…"
     private(set) var readError: String?
     private(set) var status: String?
     var selection: Set<URL> = []
@@ -361,11 +363,15 @@ final class BrowserModel {
     func perform(_ operation: FileOperation) {
         guard !isWorking else { return }
         status = nil
+        if case .extract(_, installIfMissing: true) = operation {
+            workingMessage = "正在准备 7-Zip 并解压…"
+        }
         isWorking = true
         Task { [weak self, fileSystem] in
             let result = await fileSystem.perform(operation)
             guard let self else { return }
             isWorking = false
+            workingMessage = "正在处理文件…"
             if let outputName = result.outputName {
                 status = "\(operation.completion)「\(outputName)」"
             } else if result.completed > 0 {
@@ -378,6 +384,12 @@ final class BrowserModel {
                 notice = FileNotice(
                     title: result.completed > 0 ? "部分项目操作失败" : "文件操作失败",
                     message: details + summary
+                )
+            } else if let source = result.archiveNeedingSevenZip {
+                notice = FileNotice(
+                    title: "安装 7-Zip 并解压？",
+                    message: "未找到 7-Zip。文件桌可以从 7-Zip 官方 GitHub 下载并校验安装包，安装到当前用户的应用支持目录，然后继续解压「\(source.lastPathComponent)」。",
+                    archiveNeedingSevenZip: source
                 )
             } else if let copy = result.encryptedCopy {
                 notice = FileNotice(
