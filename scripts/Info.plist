@@ -16,6 +16,21 @@
     <string>文件桌</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>NSServices</key>
+    <array>
+        <dict>
+            <key>NSMenuItem</key>
+            <dict><key>default</key><string>用文件桌打开</string></dict>
+            <key>NSMessage</key>
+            <string>openFolderInFileDesk</string>
+            <key>NSPortName</key>
+            <string>文件桌</string>
+            <key>NSSendFileTypes</key>
+            <array><string>public.folder</string></array>
+            <key>NSRequiredContext</key>
+            <dict><key>NSApplicationIdentifier</key><string>com.apple.finder</string></dict>
+        </dict>
+    </array>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

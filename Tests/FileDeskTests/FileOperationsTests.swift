@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import XCTest
 @testable import FileDesk
 
@@ -140,6 +140,26 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertTrue(model.canGoForward)
         XCTAssertTrue(model.goToFolder("~"))
         XCTAssertEqual(model.directory, FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL)
+    }
+
+    @MainActor
+    func testFinderServiceAcceptsOnlyOneFolder() throws {
+        let base = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let folder = base.appendingPathComponent("测试 目录", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        let file = base.appendingPathComponent("文档.txt")
+        try Data().write(to: file)
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        for (urls, expected) in [([folder], folder as URL?), ([file], nil), ([base, folder], nil)] {
+            board.clearContents()
+            XCTAssertTrue(board.writeObjects(urls.map { $0 as NSURL }))
+            XCTAssertEqual(FileDeskAppDelegate.selectedFolder(on: board)?.path, expected?.path)
+        }
+        board.clearContents()
+        XCTAssertTrue(board.setPropertyList([folder.path], forType: .init("NSFilenamesPboardType")))
+        XCTAssertEqual(FileDeskAppDelegate.selectedFolder(on: board)?.path, folder.path)
     }
 
     @MainActor

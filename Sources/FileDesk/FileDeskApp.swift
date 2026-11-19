@@ -38,6 +38,34 @@ struct FileDeskApp: App {
 final class FileDeskAppDelegate: NSObject, NSApplicationDelegate {
     weak var model: BrowserModel?
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.servicesProvider = self
+    }
+
+    @objc(openFolderInFileDesk:userData:error:)
+    func openFolderInFileDesk(_ pasteboard: NSPasteboard, userData: String?,
+                              error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        guard let folder = Self.selectedFolder(on: pasteboard) else {
+            error.pointee = "请在访达中选中一个普通文件夹。"
+            return
+        }
+        NSWorkspace.shared.open([folder], withApplicationAt: Bundle.main.bundleURL,
+                                configuration: .init()) { _, error in
+            if let error {
+                Task { @MainActor in NSAlert(error: error).runModal() }
+            }
+        }
+    }
+
+    static func selectedFolder(on pasteboard: NSPasteboard) -> URL? {
+        var urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        if urls.isEmpty, let paths = pasteboard.propertyList(forType: .init("NSFilenamesPboardType")) as? [String] {
+            urls = paths.map { URL(fileURLWithPath: $0) }
+        }
+        guard urls.count == 1, let folder = urls.first, FileSystem.item(at: folder).isFolder else { return nil }
+        return folder
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
         if model.isWorking { return .terminateCancel }
