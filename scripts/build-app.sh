@@ -24,6 +24,11 @@ bundle="$stage/文件桌.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 install -m 755 "$binary_dir/FileDesk" "$bundle/Contents/MacOS/FileDesk"
 install -m 644 "$project_dir/scripts/Info.plist" "$bundle/Contents/Info.plist"
+version="${FILEDESK_VERSION:-$(git describe --tags --exact-match HEAD 2>/dev/null || true)}"
+if [[ "$version" =~ ^v?((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${BASH_REMATCH[1]}" "$bundle/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BASH_REMATCH[1]}" "$bundle/Contents/Info.plist"
+fi
 install -m 644 "$project_dir/scripts/FileDesk.icns" "$bundle/Contents/Resources/FileDesk.icns"
 codesign --force --sign - "$bundle"
 codesign --verify --strict "$bundle"

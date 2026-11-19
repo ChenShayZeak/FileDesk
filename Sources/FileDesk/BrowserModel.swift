@@ -157,6 +157,47 @@ final class BrowserModel {
         notice = FileNotice(title: "无法打开项目", message: "请选择普通文件夹或 .filedesk 加密文件。")
     }
 
+    func checkForUpdate() async {
+        guard !isWorking, session == nil else { return }
+        isWorking = true
+        workingMessage = "正在检查 GitHub 版本…"
+        defer {
+            isWorking = false
+            workingMessage = "正在处理文件…"
+        }
+        let updater = AppUpdater()
+        let app = Bundle.main.bundleURL
+        let alert = NSAlert()
+        do {
+            let current = try AppUpdater.installedVersion(at: app)
+            if let release = try await updater.latest() {
+                if release.version.compare(current, options: .numeric) == .orderedDescending {
+                    let confirm = NSAlert()
+                    confirm.messageText = "发现新版本 " + release.version
+                    confirm.informativeText = "当前版本为 " + current + "。从 GitHub 拉取该标签的源码，在此 Mac 上编译并更新文件桌？"
+                    confirm.addButton(withTitle: "安装更新")
+                    confirm.addButton(withTitle: "取消").keyEquivalent = "\u{1b}"
+                    guard confirm.runModal() == .alertFirstButtonReturn else { return }
+                    workingMessage = "正在下载源码并编译 " + release.version + "…"
+                    try await updater.install(release, at: app)
+                    alert.messageText = "已安装 " + release.version
+                    alert.informativeText = "退出并重新打开文件桌即可使用新版本。"
+                } else {
+                    alert.messageText = "已是最新版本"
+                    alert.informativeText = "已安装版本为 " + current + "。"
+                }
+            } else {
+                alert.messageText = "暂无可更新的版本"
+                alert.informativeText = "GitHub 仓库尚未发布正式版本标签。当前版本为 " + current + "。"
+            }
+        } catch {
+            alert.messageText = "更新失败"
+            alert.informativeText = error.localizedDescription
+        }
+        alert.addButton(withTitle: "好")
+        alert.runModal()
+    }
+
     func setDefaultApp(_ app: URL?, for type: UTType) async {
         guard let app, app.pathExtension == "app" else {
             notice = FileNotice(title: "无法设置默认应用", message: "请从应用程序包启动文件桌，并确认目标应用存在。")

@@ -20,6 +20,12 @@ struct FileDeskApp: App {
         .defaultSize(width: 1120, height: 720)
         .windowStyle(.hiddenTitleBar)
         .handlesExternalEvents(matching: ["file:"])
+        .commands {
+            CommandGroup(after: .help) {
+                Button("检查更新…") { Task { await model.checkForUpdate() } }
+                    .disabled(model.isWorking || model.session != nil)
+            }
+        }
     }
 }
 
