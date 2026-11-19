@@ -95,8 +95,16 @@ struct BrowserView: View {
                 set: { if !$0 { model.notice = nil } }
             ),
             presenting: model.notice
-        ) { _ in
-            Button("好", role: .cancel) {}
+        ) { notice in
+            if let copy = notice.encryptedCopy {
+                Button("保留原文件", role: .cancel) {}
+                    .keyboardShortcut(.defaultAction)
+                Button("将原文件移到废纸篓", role: .destructive) {
+                    model.perform(.trashEncryptedOriginal(copy))
+                }
+            } else {
+                Button("好", role: .cancel) {}
+            }
         } message: { notice in
             Text(notice.message)
         }

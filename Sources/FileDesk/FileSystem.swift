@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct FileItem: Identifiable, Sendable {
@@ -68,6 +69,7 @@ enum FileOperation: Sendable {
     case trash(sources: [URL])
     case setTags(folder: URL, tags: [String])
     case encrypt(source: URL, password: String)
+    case trashEncryptedOriginal(EncryptedCopy)
 
     var completion: String {
         switch self {
@@ -75,7 +77,7 @@ enum FileOperation: Sendable {
         case .rename: "已重命名"
         case .copy: "已复制文件"
         case .move: "已移动文件"
-        case .trash: "已移到废纸篓"
+        case .trash, .trashEncryptedOriginal: "已移到废纸篓"
         case .setTags: "已更新文件夹标签"
         case .encrypt: "已生成加密副本"
         }
@@ -86,6 +88,14 @@ struct OperationResult: Sendable {
     var completed = 0
     var failures: [String] = []
     var outputName: String?
+    var encryptedCopy: EncryptedCopy?
+}
+
+struct EncryptedCopy: Sendable {
+    let original: URL
+    let encrypted: URL
+    let originalDigest: SHA256.Digest
+    let encryptedDigest: SHA256.Digest
 }
 
 private enum FileOperationError: LocalizedError {
@@ -93,6 +103,7 @@ private enum FileOperationError: LocalizedError {
     case insideSource
     case sameFolder
     case destinationExists(String)
+    case encryptionFilesChanged
 
     var errorDescription: String? {
         switch self {
@@ -100,6 +111,7 @@ private enum FileOperationError: LocalizedError {
         case .insideSource: "目标位置位于源文件夹内。"
         case .sameFolder: "文件已在该文件夹中。"
         case .destinationExists(let name): "目标位置已有同名项目「\(name)」。"
+        case .encryptionFilesChanged: "原文件或加密副本已变化或无法读取，已取消移到废纸篓。"
         }
     }
 }
@@ -207,10 +219,31 @@ actor FileSystem {
                 try FileCipher.requireRegularFile(source)
                 let target = source.appendingPathExtension(CipherMode.fileExtension)
                 try requireAvailable(target)
-                try withStagedOutput(target) { output in
-                    try FileCipher.transform(.encrypt, source: source, output: output, password: password)
+                result.encryptedCopy = try withStagedOutput(target) { output in
+                    let digest = try FileCipher.transform(.encrypt, source: source, output: output, password: password)
+                    return EncryptedCopy(original: source, encrypted: target, originalDigest: digest,
+                                         encryptedDigest: try FileCipher.digest(output))
                 }
                 result.outputName = target.lastPathComponent
+            }
+        case .trashEncryptedOriginal(let copy):
+            attempt(copy.original.lastPathComponent) {
+                var error: NSError?
+                var outcome: Result<Void, Error>?
+                NSFileCoordinator().coordinate(readingItemAt: copy.encrypted, options: [],
+                                               writingItemAt: copy.original, options: .forDeleting,
+                                               error: &error) { encrypted, original in
+                    outcome = Result {
+                        guard (try? FileCipher.digest(encrypted)) == copy.encryptedDigest,
+                              (try? FileCipher.digest(original)) == copy.originalDigest else {
+                            throw FileOperationError.encryptionFilesChanged
+                        }
+                        try self.manager.trashItem(at: original, resultingItemURL: nil)
+                    }
+                }
+                if let error { throw error }
+                guard let outcome else { throw CocoaError(.fileWriteUnknown) }
+                try outcome.get()
             }
         }
         return result
@@ -248,16 +281,17 @@ actor FileSystem {
         }
     }
 
-    private func withStagedOutput(_ target: URL, write: (URL) throws -> Void) throws {
+    private func withStagedOutput<T>(_ target: URL, write: (URL) throws -> T) throws -> T {
         let staging = target.deletingLastPathComponent()
             .appendingPathComponent(".filedesk-" + UUID().uuidString, isDirectory: true)
         try manager.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? manager.removeItem(at: staging) }
 
         let stagedItem = staging.appendingPathComponent(target.lastPathComponent)
-        try write(stagedItem)
+        let result = try write(stagedItem)
         try requireAvailable(target)
         try manager.moveItem(at: stagedItem, to: target)
+        return result
     }
 
     private func transferTarget(for source: URL, in destination: URL) throws -> URL {

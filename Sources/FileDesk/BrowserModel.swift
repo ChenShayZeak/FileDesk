@@ -15,6 +15,7 @@ struct FileNotice: Identifiable {
     let id = UUID()
     let title: String
     let message: String
+    var encryptedCopy: EncryptedCopy? = nil
 }
 
 @MainActor
@@ -377,6 +378,12 @@ final class BrowserModel {
                 notice = FileNotice(
                     title: result.completed > 0 ? "部分项目操作失败" : "文件操作失败",
                     message: details + summary
+                )
+            } else if let copy = result.encryptedCopy {
+                notice = FileNotice(
+                    title: "加密成功，要将明文原文件移到废纸篓吗？",
+                    message: "已生成「\(copy.encrypted.lastPathComponent)」。请选择是否保留原文件「\(copy.original.lastPathComponent)」。",
+                    encryptedCopy: copy
                 )
             }
             refresh()

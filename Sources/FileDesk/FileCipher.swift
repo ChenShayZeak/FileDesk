@@ -55,6 +55,18 @@ enum FileCipher {
         }
     }
 
+    static func digest(_ file: URL) throws -> SHA256.Digest {
+        let freshURL = URL(fileURLWithPath: file.path, isDirectory: false)
+        try FileCipher.requireRegularFile(freshURL)
+        let handle = try FileHandle(forReadingFrom: freshURL)
+        defer { try? handle.close() }
+        var hash = SHA256()
+        while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty {
+            hash.update(data: data)
+        }
+        return hash.finalize()
+    }
+
     private struct CipherContext {
         let header: Data
         let key: SymmetricKey

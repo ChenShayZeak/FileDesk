@@ -48,10 +48,10 @@ actor EncryptedFileSessions {
         let file = folder.appendingPathComponent(name, isDirectory: false)
 
         do {
-            let originalDigest = try Self.digest(encryptedFile)
+            let originalDigest = try FileCipher.digest(encryptedFile)
             let plaintextDigest = try FileCipher.transform(.decrypt, source: encryptedFile, output: file, password: password)
             // Reject a file that was replaced or modified during decryption.
-            guard (try? Self.digest(encryptedFile)) == originalDigest else {
+            guard (try? FileCipher.digest(encryptedFile)) == originalDigest else {
                 throw EncryptedSessionError.originalChanged
             }
 
@@ -72,7 +72,7 @@ actor EncryptedFileSessions {
     func changePassword(_ file: URL, oldPassword: String, newPassword: String) throws {
         guard active == nil else { throw EncryptedSessionError.alreadyOpen }
         let encrypted = try validateEncryptedFile(file)
-        let originalDigest = try Self.digest(encrypted)
+        let originalDigest = try FileCipher.digest(encrypted)
         let staging = try privateDirectory(in: encrypted.deletingLastPathComponent(), id: UUID())
         defer { try? manager.removeItem(at: staging) }
 
@@ -122,9 +122,9 @@ actor EncryptedFileSessions {
     private func writeBackIfChanged(_ openFile: OpenFile) throws -> Bool {
         let plaintext = openFile.session.file
         let encrypted = openFile.encryptedFile
-        let changedDigest = try Self.digest(plaintext)
+        let changedDigest = try FileCipher.digest(plaintext)
         guard changedDigest != openFile.plaintextDigest else { return false }
-        guard (try? Self.digest(encrypted)) == openFile.originalDigest else {
+        guard (try? FileCipher.digest(encrypted)) == openFile.originalDigest else {
             throw EncryptedSessionError.originalChanged
         }
 
@@ -151,7 +151,7 @@ actor EncryptedFileSessions {
         var coordinationError: NSError?
         var result: Result<Void, Error>?
         func replace(_ target: URL) throws {
-            guard (try? Self.digest(target)) == originalDigest else {
+            guard (try? FileCipher.digest(target)) == originalDigest else {
                 throw EncryptedSessionError.originalChanged
             }
             _ = try manager.replaceItemAt(target, withItemAt: replacement)
@@ -164,7 +164,7 @@ actor EncryptedFileSessions {
                 error: &coordinationError
             ) { coordinatedPlaintext, target in
                 result = Result {
-                    guard try Self.digest(coordinatedPlaintext) == plaintext.digest else {
+                    guard try FileCipher.digest(coordinatedPlaintext) == plaintext.digest else {
                         throw EncryptedSessionError.copyChanged
                     }
                     try replace(target)
@@ -188,18 +188,6 @@ actor EncryptedFileSessions {
         }
         try FileCipher.requireRegularFile(file)
         return file
-    }
-
-    private static func digest(_ file: URL) throws -> SHA256.Digest {
-        let freshURL = URL(fileURLWithPath: file.path, isDirectory: false)
-        try FileCipher.requireRegularFile(freshURL)
-        let handle = try FileHandle(forReadingFrom: freshURL)
-        defer { try? handle.close() }
-        var hash = SHA256()
-        while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty {
-            hash.update(data: data)
-        }
-        return hash.finalize()
     }
 
     private func editableText(at file: URL) throws -> (text: String, hasBOM: Bool)? {

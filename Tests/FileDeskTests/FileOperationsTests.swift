@@ -109,7 +109,36 @@ final class FileOperationsTests: XCTestCase {
 
             let duplicate = await fs.perform(.encrypt(source: source, password: "其他密码"))
             XCTAssertEqual(duplicate.completed, 0)
+            XCTAssertNil(duplicate.encryptedCopy)
         }
+    }
+
+    func testPostEncryptionCleanupPreservesFilesChangedAfterEncryption() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("原文件.txt")
+        let initial = Data("before".utf8)
+        try initial.write(to: source)
+        let result = await fs.perform(.encrypt(source: source, password: "测试密码"))
+        let copy = try XCTUnwrap(result.encryptedCopy)
+        XCTAssertEqual(copy.original, source)
+        XCTAssertEqual(try Data(contentsOf: source), initial)
+        let encrypted = try Data(contentsOf: copy.encrypted)
+
+        let changed = Data("edited".utf8)
+        try changed.write(to: source)
+        let changedSource = await fs.perform(.trashEncryptedOriginal(copy))
+        XCTAssertEqual(changedSource.completed, 0)
+        XCTAssertFalse(changedSource.failures.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: source), changed)
+        XCTAssertEqual(try Data(contentsOf: copy.encrypted), encrypted)
+
+        try initial.write(to: source)
+        try Data(encrypted.dropLast()).write(to: copy.encrypted)
+        let changedCopy = await fs.perform(.trashEncryptedOriginal(copy))
+        XCTAssertEqual(changedCopy.completed, 0)
+        XCTAssertFalse(changedCopy.failures.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: source), initial)
     }
 
     func testInternalDraftAndExternalEditsAreReencryptedAtTheSamePath() async throws {

@@ -116,7 +116,7 @@ struct PasswordSheet: View {
                 }
             }
             Text(mode == .encrypt
-                 ? "将在同一文件夹生成 .filedesk 副本，并保留原文件。请记住密码，解密时需要它。"
+                 ? "将在同一文件夹生成 .filedesk 副本，成功后可选择是否保留明文原文件。请记住密码，解密时需要它。"
                  : "解密后立即打开临时副本。关闭会话时，修改会加密写回，临时副本会删除。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
