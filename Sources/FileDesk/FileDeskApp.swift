@@ -21,6 +21,11 @@ struct FileDeskApp: App {
         .windowStyle(.hiddenTitleBar)
         .handlesExternalEvents(matching: ["file:"])
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("设为默认文件夹浏览器…") {
+                    Task { await model.setDefaultApp(Bundle.main.bundleURL, for: .folder) }
+                }
+            }
             CommandGroup(after: .help) {
                 Button("检查更新…") { Task { await model.checkForUpdate() } }
                     .disabled(model.isWorking || model.session != nil)
