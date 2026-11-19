@@ -35,6 +35,9 @@ final class BrowserModel {
     private(set) var recentPaths: [String] {
         didSet { preferences.set(recentPaths, forKey: "recentPaths") }
     }
+    private(set) var recentFilePaths: [String] {
+        didSet { preferences.set(recentFilePaths, forKey: "recentFilePaths") }
+    }
     private(set) var items: [FileItem] = []
     private(set) var customFavorites: [Favorite] = []
     private(set) var isLoading = false
@@ -78,6 +81,7 @@ final class BrowserModel {
         self.home = home
         directory = home
         recentPaths = preferences.stringArray(forKey: "recentPaths") ?? []
+        recentFilePaths = preferences.stringArray(forKey: "recentFilePaths") ?? []
         showHidden = preferences.object(forKey: "showHidden") as? Bool ?? true
         history = [home]
         sort = preferences.string(forKey: "sort").flatMap(FileSort.init(rawValue:)) ?? .name
@@ -316,12 +320,33 @@ final class BrowserModel {
         preferences.set(customFavorites.map { $0.url.path }, forKey: "favorites")
     }
 
-    func open(_ item: FileItem) {
+    func open(_ item: FileItem, with openFile: (URL) -> Bool = { NSWorkspace.shared.open($0) }) {
         if item.isFolder {
             navigate(to: item.url)
-        } else if !NSWorkspace.shared.open(item.url) {
+        } else if openFile(item.url) {
+            recordOpenedFile(item.url)
+        } else {
             notice = FileNotice(title: String(localized: "无法打开项目"), message: item.name)
         }
+    }
+
+    private func recordOpenedFile(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        guard recentFilePaths.first != path else { return }
+        recentFilePaths = [path] + recentFilePaths.filter { $0 != path }
+    }
+
+    func removeRecentFile(_ path: String) {
+        recentFilePaths.removeAll { $0 == path }
+    }
+
+    func recentFile(at path: String) -> FileItem? {
+        let item = FileSystem.item(at: URL(fileURLWithPath: path, isDirectory: false))
+        guard !item.isFolder, FileManager.default.fileExists(atPath: path) else {
+            notice = FileNotice(title: String(localized: "无法打开项目"), message: path)
+            return nil
+        }
+        return item
     }
 
     func openInTerminal() async {
@@ -403,6 +428,7 @@ final class BrowserModel {
         defer { isWorking = false }
         do {
             session = try await encryptedFiles.open(item.url, password: password)
+            recordOpenedFile(item.url)
         } catch {
             sessionError = error.localizedDescription
         }

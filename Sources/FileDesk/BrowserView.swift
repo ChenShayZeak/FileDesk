@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 struct BrowserView: View {
     let model: BrowserModel
+    @AppStorage("showSidebar") private var showSidebar = true
     @AppStorage("showInspector") private var showInspector = true
     @AppStorage("gridLayout") private var gridLayout = false
     @AppStorage("showPathHistory") private var showPathHistory = false
@@ -21,10 +22,16 @@ struct BrowserView: View {
         @Bindable var model = model
 
         HStack(spacing: 0) {
-            sidebar
-                .frame(width: 182)
-                .browserGlass(cornerRadius: 18)
-                .padding(8)
+            SlidingPanel(axis: .horizontal, progress: showSidebar ? 1 : 0, anchor: .topTrailing) {
+                sidebar
+                    .frame(width: 182)
+                    .browserGlass(cornerRadius: 18)
+                    .padding(8)
+            }
+            .clipped()
+            .disabled(!showSidebar)
+            .accessibilityHidden(!showSidebar)
+            .animation(panelAnimation, value: showSidebar)
             VStack(spacing: 0) {
                 toolbar
                     .browserGlass(cornerRadius: 18)
@@ -191,7 +198,7 @@ struct BrowserView: View {
             .padding(.bottom, 25)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
+                LazyVStack(alignment: .leading, spacing: 4) {
                     sidebarLabel(String(localized: "常用位置"))
                     ForEach(model.standardFavorites) { favorite in
                         favoriteButton(favorite)
@@ -203,6 +210,17 @@ struct BrowserView: View {
                         ForEach(model.customFavorites) { favorite in
                             favoriteButton(favorite)
                         }
+                    }
+                    sidebarLabel(String(localized: "最近使用"))
+                        .padding(.top, 19)
+                    if model.recentFilePaths.isEmpty {
+                        Text("尚未打开文件")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 9)
+                    }
+                    ForEach(model.recentFilePaths, id: \.self) { path in
+                        recentFileButton(path)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -217,6 +235,35 @@ struct BrowserView: View {
             .padding(.horizontal, 9)
             .padding(.bottom, 5)
             .accessibilityAddTraits(.isHeader)
+    }
+
+    private func recentFileButton(_ path: String) -> some View {
+        let url = URL(fileURLWithPath: path, isDirectory: false)
+        return Button {
+            if let item = model.recentFile(at: path) { open(item) }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "doc")
+                    .frame(width: 18)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(url.lastPathComponent)
+                    Text(url.deletingLastPathComponent().path)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .lineLimit(1)
+                .truncationMode(.middle)
+            }
+            .padding(.horizontal, 9)
+            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(path)
+        .contextMenu {
+            Button("从最近使用中移除") { model.removeRecentFile(path) }
+        }
     }
 
     private func favoriteButton(_ favorite: Favorite) -> some View {
@@ -357,6 +404,9 @@ struct BrowserView: View {
             .help("排序与更多操作")
             .accessibilityLabel("排序与更多操作")
 
+            ToolButton(title: showSidebar ? String(localized: "隐藏左侧栏") : String(localized: "显示左侧栏"), symbol: "sidebar.left", active: showSidebar) {
+                showSidebar.toggle()
+            }
             ToolButton(title: showInspector ? String(localized: "隐藏详细信息") : String(localized: "显示详细信息"), symbol: "sidebar.right", active: showInspector) {
                 showInspector.toggle()
             }

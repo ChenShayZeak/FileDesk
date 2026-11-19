@@ -217,3 +217,8 @@
 "未找到系统终端应用。" = "The Terminal app could not be found.";
 "当前文件夹" = "Current Folder";
 "正在搜索子文件夹…" = "Searching subfolders…";
+"最近使用" = "Recents";
+"尚未打开文件" = "No recently opened files";
+"从最近使用中移除" = "Remove from Recents";
+"隐藏左侧栏" = "Hide Sidebar";
+"显示左侧栏" = "Show Sidebar";

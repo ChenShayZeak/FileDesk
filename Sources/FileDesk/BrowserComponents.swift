@@ -45,6 +45,7 @@ extension View {
 struct SlidingPanel: Layout {
     let axis: Axis
     var progress: CGFloat
+    var anchor: UnitPoint = .topLeading
 
     var animatableData: CGFloat {
         get { progress }
@@ -65,7 +66,8 @@ struct SlidingPanel: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        subviews.first?.place(at: bounds.origin, anchor: .topLeading,
+        let position = CGPoint(x: bounds.minX + bounds.width * anchor.x, y: bounds.minY + bounds.height * anchor.y)
+        subviews.first?.place(at: position, anchor: anchor,
                               proposal: panelProposal(ProposedViewSize(bounds.size)))
     }
 }
