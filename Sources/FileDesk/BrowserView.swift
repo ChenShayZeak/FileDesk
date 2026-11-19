@@ -166,20 +166,6 @@ struct BrowserView: View {
                 }
                 .padding(.horizontal, 10)
             }
-
-            Divider().padding(.horizontal, 15)
-            Button {
-                model.chooseDirectory()
-            } label: {
-                Label("选择文件夹…", systemImage: "folder.badge.plus")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 9)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("o", modifiers: [.command, .shift])
-            .padding(11)
         }
         .background(BrowserColors.sidebar)
     }
@@ -297,6 +283,8 @@ struct BrowserView: View {
                     .keyboardShortcut(".", modifiers: [.command, .shift])
                 Button("刷新", action: model.refresh)
                     .keyboardShortcut("r", modifiers: .command)
+                Button("选择文件夹…") { model.chooseDirectory() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
                 Menu("默认打开方式") {
                     Button("文件夹用文件桌打开…") {
                         Task { await model.setDefaultApp(Bundle.main.bundleURL, for: .folder) }
@@ -347,13 +335,15 @@ struct BrowserView: View {
                         .truncationMode(.middle)
                         .accessibilityAddTraits(.isHeader)
                         .help(model.directory.path)
-                    ToolButton(
-                        title: model.isFavorite ? "移除收藏" : "收藏当前文件夹",
-                        symbol: model.isFavorite ? "star.fill" : "star",
-                        active: model.isFavorite,
-                        action: model.toggleFavorite
-                    )
-                    .disabled(!model.canFavorite || model.readError != nil)
+                    if model.canFavorite {
+                        ToolButton(
+                            title: model.isFavorite ? "移除收藏" : "收藏当前文件夹",
+                            symbol: model.isFavorite ? "star.fill" : "star",
+                            active: model.isFavorite,
+                            action: model.toggleFavorite
+                        )
+                        .disabled(model.readError != nil)
+                    }
                     Spacer(minLength: 8)
                     HStack(spacing: 1) {
                         ToolButton(title: "列表视图", symbol: "list.bullet", active: !gridLayout) {
