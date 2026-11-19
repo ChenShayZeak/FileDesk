@@ -47,10 +47,25 @@ final class BrowserModel {
     private(set) var readError: String?
     private(set) var status: String?
     var copiedPathsID: UUID?
+    private var selectionAnchor: URL?
     var selection: Set<URL> = [] {
         didSet {
             let selected = items.filter { selection.contains($0.id) }
             selectedItems = selected.count == 1 ? [selected[0].checkingEncryption()] : selected
+            if selectionAnchor.map(selection.contains) != true { selectionAnchor = selected.first?.id }
+        }
+    }
+
+    func selectGridItem(_ id: URL, modifiers: NSEvent.ModifierFlags) {
+        if modifiers.contains(.shift), let start = items.firstIndex(where: { $0.id == selectionAnchor }),
+           let end = items.firstIndex(where: { $0.id == id }) {
+            let range = items[min(start, end)...max(start, end)].map(\.id)
+            selection = modifiers.contains(.command) ? selection.union(range) : Set(range)
+        } else if modifiers.contains(.command) && selection.contains(id) {
+            selection.remove(id)
+        } else {
+            selection = modifiers.contains(.command) ? selection.union([id]) : [id]
+            selectionAnchor = id
         }
     }
     var preview: URL?
@@ -535,7 +550,15 @@ final class BrowserModel {
         }
         isWorking = true
         Task { [weak self, fileSystem] in
-            let result = await fileSystem.perform(operation)
+            let result = await fileSystem.perform(operation) { source, target in
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = String(localized: "是否替换「\(target.lastPathComponent)」？")
+                alert.informativeText = String(localized: "目标：\(target.path)\n来源：\(source.path)\n替换会覆盖目标项目及其内容。")
+                alert.addButton(withTitle: String(localized: "跳过")).keyEquivalent = "\r"
+                alert.addButton(withTitle: String(localized: "替换")).hasDestructiveAction = true
+                return alert.runModal() == .alertSecondButtonReturn
+            }
             guard let self else { return }
             isWorking = false
             workingMessage = String(localized: "正在处理文件…")

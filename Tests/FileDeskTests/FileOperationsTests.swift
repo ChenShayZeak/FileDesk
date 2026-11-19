@@ -6,6 +6,88 @@ final class FileOperationsTests: XCTestCase {
     private let fs = FileSystem()
     private let sessions = EncryptedFileSessions()
 
+    @MainActor
+    func testGridShiftSelectionKeepsAnchorAndUsesVisibleOrder() async throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let urls = ["A", "B", "C", "D", "E"].map { root.standardizedFileURL.appendingPathComponent($0) }
+        for url in urls.reversed() { try Data().write(to: url) }
+        let suite = UUID().uuidString
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = BrowserModel(preferences: preferences)
+        model.navigate(to: root)
+        let deadline = ContinuousClock.now + .seconds(5)
+        while model.isLoading && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.items.map(\.url), urls)
+        model.selectGridItem(urls[2], modifiers: [])
+        model.selectGridItem(urls[4], modifiers: .shift)
+        XCTAssertEqual(model.selectedItems.map(\.url), Array(urls[2...4]))
+        model.selectGridItem(urls[0], modifiers: .shift)
+        XCTAssertEqual(model.selectedItems.map(\.url), Array(urls[0...2]))
+        model.selectGridItem(urls[4], modifiers: .command)
+        model.selectGridItem(urls[3], modifiers: [.command, .shift])
+        XCTAssertEqual(model.selectedItems.map(\.url), urls)
+        model.selectGridItem(urls[1], modifiers: .command)
+        XCTAssertFalse(model.selection.contains(urls[1]))
+        model.selection = []
+        model.selectGridItem(urls[0], modifiers: .shift)
+        XCTAssertEqual(model.selection, [urls[0]])
+    }
+
+    func testMoveConflictsReplaceOrSkipEachItemAndKeepChangedTargets() async throws {
+        let root = try makeDirectory()
+        let fm = FileManager.default
+        defer { try? fm.removeItem(at: root) }
+        let destination = root.appendingPathComponent("destination", isDirectory: true)
+        try fm.createDirectory(at: destination, withIntermediateDirectories: false)
+        let sources = ["replace", "skip", "changed", "unique"].map { root.appendingPathComponent($0) }
+        for url in sources {
+            try Data("new".utf8).write(to: url)
+            if url.lastPathComponent != "unique" {
+                try Data("old".utf8).write(to: destination.appendingPathComponent(url.lastPathComponent))
+            }
+        }
+        let result = await fs.perform(.move(sources: sources, destination: destination)) { source, target in
+            if source.lastPathComponent == "changed" {
+                do { try Data("edited".utf8).write(to: target, options: .atomic) }
+                catch { XCTFail(error.localizedDescription) }
+            }
+            XCTAssertNotEqual(source.lastPathComponent, "unique")
+            return source.lastPathComponent != "skip"
+        }
+        XCTAssertEqual(result.completed, 2, result.failures.joined())
+        XCTAssertEqual(result.failures.count, 1)
+        for (index, expected) in ["new", "old", "edited", "new"].enumerated() {
+            XCTAssertEqual(try String(contentsOf: destination.appendingPathComponent(sources[index].lastPathComponent)), expected)
+            XCTAssertEqual(fm.fileExists(atPath: sources[index].path), index == 1 || index == 2)
+        }
+    }
+
+    func testMoveReplacesFolderAndNeverReplacesAnAncestor() async throws {
+        let fm = FileManager.default
+        let root = try makeDirectory()
+        defer { try? fm.removeItem(at: root) }
+        let destination = root.appendingPathComponent("destination", isDirectory: true)
+        let source = root.appendingPathComponent("folder", isDirectory: true)
+        let target = destination.appendingPathComponent("folder", isDirectory: true)
+        for folder in [source, target] { try fm.createDirectory(at: folder, withIntermediateDirectories: true) }
+        try Data().write(to: source.appendingPathComponent("new"))
+        try Data().write(to: target.appendingPathComponent("old"))
+        let result = await fs.perform(.move(sources: [source], destination: destination)) { _, _ in true }
+        XCTAssertEqual(result.completed, 1, result.failures.joined())
+        XCTAssertEqual(try fm.contentsOfDirectory(atPath: target.path), ["new"])
+        XCTAssertFalse(fm.fileExists(atPath: source.path))
+        let nested = target.appendingPathComponent("folder", isDirectory: true)
+        try fm.createDirectory(at: nested, withIntermediateDirectories: false)
+        let refused = await fs.perform(.move(sources: [nested], destination: destination)) { _, _ in
+            XCTFail("An ancestor must never be offered for replacement")
+            return false
+        }
+        XCTAssertEqual(refused.failures.count, 1)
+        XCTAssertTrue(fm.fileExists(atPath: nested.path))
+    }
+
     func testMissingSevenZipRequestsConsentBeforeInstallingOrExtracting() async throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

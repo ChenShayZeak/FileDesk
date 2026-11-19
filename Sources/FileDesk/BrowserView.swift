@@ -12,6 +12,7 @@ struct BrowserView: View {
     @Environment(\.browserAccent) private var accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
+    @FocusState private var filesFocused: Bool
     @State private var prompt: BrowserPrompt?
     @State private var trashItems: [FileItem] = []
 
@@ -27,10 +28,7 @@ struct BrowserView: View {
     var body: some View {
         @Bindable var model = model
 
-        GeometryReader { window in
-            browserContent(width: window.size.width)
-        }
-        .padding(8)
+        browserLayout
         .background {
             LinearGradient(colors: [accent.opacity(0.09), .clear],
                            startPoint: .topLeading, endPoint: .center)
@@ -130,6 +128,18 @@ struct BrowserView: View {
         }
     }
 
+    private var browserLayout: some View {
+        let copy: (() -> Void)? = fileCommandsEnabled && !model.selection.isEmpty ? { model.copy(model.selectedItems) } : nil
+        let paste: (() -> Void)? = fileCommandsEnabled && !model.isWorking && model.readError == nil ? { model.paste() } : nil
+        return GeometryReader { window in
+            browserContent(width: window.size.width)
+        }
+        .padding(8)
+        .onCommand(#selector(NSText.copy(_:)), perform: copy)
+        .onCommand(#selector(NSText.paste(_:)), perform: paste)
+        .onChange(of: model.directory) { _, _ in filesFocused = true }
+    }
+
     private func browserContent(width: CGFloat) -> some View {
         // The viewport animates, but the grid reflows only once to the destination width.
         let gridWidth = max(0, width - (showSidebar ? sidebarWidth + panelSpacing : 0)
@@ -151,6 +161,9 @@ struct BrowserView: View {
                     .padding(.bottom, panelSpacing)
                 HStack(spacing: 0) {
                     filePane(gridWidth: gridWidth)
+                        .focusable()
+                        .focusEffectDisabled()
+                        .focused($filesFocused)
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                         .background(.background)
                         .clipShape(RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous))
@@ -600,11 +613,8 @@ struct BrowserView: View {
                 ForEach(model.items) { item in
                     let selected = model.selection.contains(item.id)
                     Button {
-                        if NSEvent.modifierFlags.contains(.command) {
-                            if selected { model.selection.remove(item.id) } else { model.selection.insert(item.id) }
-                        } else {
-                            model.selection = [item.id]
-                        }
+                        filesFocused = true
+                        model.selectGridItem(item.id, modifiers: NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags)
                     } label: {
                         VStack(spacing: 10) {
                             Image(systemName: item.symbol)
@@ -638,6 +648,8 @@ struct BrowserView: View {
                     }
                     .buttonStyle(.plain)
                     .simultaneousGesture(TapGesture(count: 2).onEnded {
+                        let modifiers = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
+                        guard modifiers.intersection([.shift, .command]).isEmpty else { return }
                         model.selection = [item.id]
                         open(item)
                     })
@@ -693,6 +705,10 @@ struct BrowserView: View {
 
     private var browserDialogPresented: Bool {
         prompt != nil || !trashItems.isEmpty || model.notice != nil
+    }
+
+    private var fileCommandsEnabled: Bool {
+        !searchFocused && !browserDialogPresented && model.session == nil && model.preview == nil
     }
 
     private var pathHistory: some View {

@@ -237,3 +237,8 @@
 "夜间模式" = "Dark";
 "自定义" = "Custom";
 "自定义颜色" = "Custom color";
+"是否替换「%@」？" = "Replace “%@”?";
+"目标：%@\n来源：%@\n替换会覆盖目标项目及其内容。" = "Destination: %@\nSource: %@\nReplacing overwrites the destination item and its contents.";
+"跳过" = "Skip";
+"替换" = "Replace";
+"源项目或目标项目已变化，请重新移动。" = "The source or destination changed. Try moving the item again.";

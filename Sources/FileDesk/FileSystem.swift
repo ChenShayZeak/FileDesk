@@ -121,6 +121,7 @@ private enum FileOperationError: LocalizedError {
     case insideSource
     case sameFolder
     case destinationExists(String)
+    case moveItemsChanged
     case encryptionFilesChanged
     case unsupportedArchive
 
@@ -130,6 +131,7 @@ private enum FileOperationError: LocalizedError {
         case .insideSource: String(localized: "目标位置位于源文件夹内。")
         case .sameFolder: String(localized: "文件已在该文件夹中。")
         case .destinationExists(let name): String(localized: "目标位置已有同名项目「\(name)」。")
+        case .moveItemsChanged: String(localized: "源项目或目标项目已变化，请重新移动。")
         case .encryptionFilesChanged: String(localized: "原文件或加密副本已变化或无法读取，已取消移到废纸篓。")
         case .unsupportedArchive: String(localized: "请选择支持的压缩文件。")
         }
@@ -253,7 +255,8 @@ actor FileSystem {
         )
     }
 
-    func perform(_ operation: FileOperation) async -> OperationResult {
+    func perform(_ operation: FileOperation,
+                 confirmReplacement: (@MainActor @Sendable (URL, URL) -> Bool)? = nil) async -> OperationResult {
         var result = OperationResult()
 
         func attempt(_ label: String, _ action: () throws -> Void) {
@@ -298,14 +301,33 @@ actor FileSystem {
             for source in sources {
                 attempt(source.lastPathComponent) {
                     let target = try transferTarget(for: source, in: destination)
+                    try requireAvailable(target)
                     try copyItem(at: source, to: target)
                 }
             }
         case .move(let sources, let destination):
             for source in sources {
-                attempt(source.lastPathComponent) {
+                do {
                     let target = try transferTarget(for: source, in: destination)
-                    try manager.moveItem(at: source, to: target)
+                    if entryExists(target) {
+                        guard let confirmReplacement else { throw FileOperationError.destinationExists(target.lastPathComponent) }
+                        let incoming = try MoveEntry(source)
+                        let existing = try MoveEntry(target)
+                        guard !incoming.sameItem(as: existing) else { throw FileOperationError.sameFolder }
+                        if existing.isDirectory {
+                            var relationship = FileManager.URLRelationship.other
+                            try manager.getRelationship(&relationship, ofDirectoryAt: target,
+                                                        toItemAt: source.deletingLastPathComponent().resolvingSymlinksInPath())
+                            guard relationship == .other else { throw FileOperationError.insideSource }
+                        }
+                        guard await confirmReplacement(source, target) else { continue }
+                        try replaceForMove(source, incoming: incoming, target: target, existing: existing)
+                    } else {
+                        try manager.moveItem(at: source, to: target)
+                    }
+                    result.completed += 1
+                } catch {
+                    result.failures.append("\(source.lastPathComponent) · \(error.localizedDescription)")
                 }
             }
         case .trash(let sources):
@@ -422,7 +444,57 @@ actor FileSystem {
         }
     }
 
-    private func withStagedOutput<T>(_ target: URL, write: (URL) throws -> T) throws -> T {
+    // lstat identifies the directory entry itself, including a dangling symlink.
+    private struct MoveEntry: Equatable {
+        let device: dev_t
+        let inode: ino_t
+        let seconds: Int
+        let nanoseconds: Int
+        let isDirectory: Bool
+
+        init(_ url: URL) throws {
+            var info = stat()
+            guard lstat(url.path, &info) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            device = info.st_dev
+            inode = info.st_ino
+            seconds = info.st_ctimespec.tv_sec
+            nanoseconds = info.st_ctimespec.tv_nsec
+            isDirectory = info.st_mode & S_IFMT == S_IFDIR
+        }
+
+        func sameItem(as other: Self) -> Bool { device == other.device && inode == other.inode }
+    }
+
+    private func replaceForMove(_ source: URL, incoming: MoveEntry, target: URL, existing: MoveEntry) throws {
+        var coordinationError: NSError?
+        var outcome: Result<Void, Error>?
+        NSFileCoordinator().coordinate(writingItemAt: source, options: .forMoving,
+                                       writingItemAt: target, options: .forReplacing, error: &coordinationError) { from, to in
+            outcome = Result {
+                func checkEntries() throws {
+                    guard try MoveEntry(from) == incoming, try MoveEntry(to) == existing else {
+                        throw FileOperationError.moveItemsChanged
+                    }
+                }
+                try checkEntries()
+                if incoming.device == existing.device {
+                    _ = try manager.replaceItemAt(to, withItemAt: from, options: .usingNewMetadataOnly)
+                } else {
+                    try withStagedOutput(to, replacing: true) { staged in
+                        try manager.copyItem(at: from, to: staged)
+                        try checkEntries()
+                    }
+                    guard try MoveEntry(from) == incoming else { throw FileOperationError.moveItemsChanged }
+                    try manager.removeItem(at: from)
+                }
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let outcome else { throw CocoaError(.fileWriteUnknown) }
+        try outcome.get()
+    }
+
+    private func withStagedOutput<T>(_ target: URL, replacing: Bool = false, write: (URL) throws -> T) throws -> T {
         let staging = target.deletingLastPathComponent()
             .appendingPathComponent(".filedesk-" + UUID().uuidString, isDirectory: true)
         try manager.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
@@ -430,8 +502,12 @@ actor FileSystem {
 
         let stagedItem = staging.appendingPathComponent(target.lastPathComponent)
         let result = try write(stagedItem)
-        try requireAvailable(target)
-        try manager.moveItem(at: stagedItem, to: target)
+        if replacing {
+            _ = try manager.replaceItemAt(target, withItemAt: stagedItem, options: .usingNewMetadataOnly)
+        } else {
+            try requireAvailable(target)
+            try manager.moveItem(at: stagedItem, to: target)
+        }
         return result
     }
 
@@ -448,8 +524,6 @@ actor FileSystem {
                 throw FileOperationError.insideSource
             }
         }
-        let target = directory.appendingPathComponent(source.lastPathComponent)
-        try requireAvailable(target)
-        return target
+        return directory.appendingPathComponent(source.lastPathComponent)
     }
 }
