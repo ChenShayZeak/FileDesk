@@ -8,9 +8,14 @@ struct BrowserView: View {
     @AppStorage("showInspector") private var showInspector = true
     @AppStorage("gridLayout") private var gridLayout = false
     @AppStorage("showPathHistory") private var showPathHistory = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
     @State private var prompt: BrowserPrompt?
     @State private var trashItems: [FileItem] = []
+
+    private var panelAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.22)
+    }
 
     var body: some View {
         @Bindable var model = model
@@ -30,20 +35,28 @@ struct BrowserView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(.background)
                     if showInspector {
-                        Divider()
-                        FileInspector(
-                            items: model.selectedItems, isWorking: model.isWorking,
-                            open: open, preview: showPreview, editTags: editTags,
-                            crypt: crypt, changePassword: changePassword
-                        )
-                        .frame(width: 226)
+                        HStack(spacing: 0) {
+                            Divider()
+                            FileInspector(
+                                items: model.selectedItems, isWorking: model.isWorking,
+                                open: open, preview: showPreview, editTags: editTags,
+                                crypt: crypt, changePassword: changePassword
+                            )
+                            .frame(width: 226)
+                        }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
+                .clipped()
                 Divider()
-                if showPathHistory {
-                    pathHistory
-                    Divider()
+                VStack(spacing: 0) {
+                    if showPathHistory {
+                        pathHistory
+                            .overlay(alignment: .bottom) { Divider() }
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .clipped()
                 statusBar
             }
         }
@@ -322,10 +335,10 @@ struct BrowserView: View {
             .accessibilityLabel("排序与更多操作")
 
             ToolButton(title: showInspector ? String(localized: "隐藏详细信息") : String(localized: "显示详细信息"), symbol: "sidebar.right", active: showInspector) {
-                showInspector.toggle()
+                withAnimation(panelAnimation) { showInspector.toggle() }
             }
             ToolButton(title: showPathHistory ? String(localized: "隐藏历史路径") : String(localized: "显示历史路径"), symbol: "rectangle.bottomthird.inset.filled", active: showPathHistory) {
-                showPathHistory.toggle()
+                withAnimation(panelAnimation) { showPathHistory.toggle() }
             }
         }
         .padding(.horizontal, 15)
@@ -639,7 +652,7 @@ struct BrowserView: View {
             .disabled(archive?.isArchive != true || model.isWorking || browserDialogPresented || model.preview != nil)
             ToolButton(title: String(localized: "移到废纸篓…"), symbol: "trash") { trashItems = model.selectedItems }
                 .keyboardShortcut(.delete, modifiers: .command)
-                .disabled(model.selection.isEmpty || model.isWorking || searchFocused ||
+                .disabled(model.selection.isEmpty || model.isWorking ||
                           browserDialogPresented || model.preview != nil)
             Menu {
                 if let item = model.selectedItems.first, model.selection.count == 1 {
