@@ -256,3 +256,8 @@
 "已创建压缩包" = "Created archive";
 "无法创建压缩包。" = "Could not create the archive.";
 "归档" = "Archive";
+"纯文本（.txt）" = "Plain Text (.txt)";
+"富文本（.rtf）" = "Rich Text (.rtf)";
+"已新建文件" = "Created file";
+"新建文件" = "New File";
+"新建文件（.%@）" = "New File (.%@)";

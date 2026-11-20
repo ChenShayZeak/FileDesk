@@ -515,16 +515,20 @@ struct BrowserView: View {
                     .controlSize(.small)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.items.isEmpty {
-                if model.searchTerm.isEmpty {
-                    emptyState(symbol: "folder", title: String(localized: "文件夹为空"), detail: String(localized: "这里还没有可见的文件。")) {
-                        Button("新建文件夹", action: createFolder)
-                            .disabled(model.isWorking)
-                    }
-                } else {
-                    emptyState(symbol: "magnifyingglass", title: String(localized: "没有匹配的文件"), detail: String(localized: "试试其他文件名或标签。")) {
-                        Button("清除搜索") { model.query = "" }
+                Group {
+                    if model.searchTerm.isEmpty {
+                        emptyState(symbol: "folder", title: String(localized: "文件夹为空"), detail: String(localized: "这里还没有可见的文件。")) {
+                            Button("新建文件夹", action: createFolder)
+                                .disabled(model.isWorking)
+                        }
+                    } else {
+                        emptyState(symbol: "magnifyingglass", title: String(localized: "没有匹配的文件"), detail: String(localized: "试试其他文件名或标签。")) {
+                            Button("清除搜索") { model.query = "" }
+                        }
                     }
                 }
+                .contentShape(Rectangle())
+                .contextMenu { directoryActions }
             } else if gridLayout {
                 fileGrid
                     .frame(width: gridWidth)
@@ -616,11 +620,7 @@ struct BrowserView: View {
         }
         .contextMenu(forSelectionType: URL.self) { selection in
             if selection.isEmpty {
-                Button("新建文件夹", action: createFolder)
-                    .disabled(model.isWorking)
-                Button("粘贴文件", action: model.paste)
-                    .disabled(model.isWorking)
-                Button("刷新", action: model.refreshBrowser)
+                directoryActions
             } else {
                 itemActions(model.items.filter { selection.contains($0.id) })
             }
@@ -694,6 +694,31 @@ struct BrowserView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
         }
+        .contentShape(Rectangle())
+        .contextMenu { directoryActions }
+    }
+
+    private var newFileMenu: some View {
+        Menu("新建文件") {
+            ForEach(NewFileFormat.allCases, id: \.self) { format in
+                Button(format.title) {
+                    let name = NamePrompt(title: String(localized: "新建文件（.\(format.rawValue)）"),
+                                          initialName: "", target: .file(model.directory, format))
+                    prompt = BrowserPrompt(content: .name(name))
+                }
+            }
+        }
+        .disabled(model.isWorking || model.readError != nil)
+    }
+
+    @ViewBuilder
+    private var directoryActions: some View {
+        newFileMenu
+        Button("新建文件夹", action: createFolder)
+            .disabled(model.isWorking)
+        Button("粘贴文件", action: model.paste)
+            .disabled(model.isWorking)
+        Button("刷新", action: model.refreshBrowser)
     }
 
     private func searchLocation(_ item: FileItem) -> some View {
@@ -743,6 +768,8 @@ struct BrowserView: View {
 
     @ViewBuilder
     private func itemActions(_ items: [FileItem]) -> some View {
+        newFileMenu
+        Divider()
         if items.count == 1, let item = items.first?.checkingEncryption() {
             if !item.isEncrypted {
                 Button("打开") { open(item) }

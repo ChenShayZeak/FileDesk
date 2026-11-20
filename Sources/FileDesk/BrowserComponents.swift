@@ -309,6 +309,7 @@ struct GoToFolderSheet: View {
 struct NamePrompt {
     enum Target {
         case folder(URL)
+        case file(URL, NewFileFormat)
         case item(URL)
     }
 
@@ -318,6 +319,7 @@ struct NamePrompt {
 
     func operation(_ name: String) -> FileOperation {
         switch target {
+        case .file(let url, let format): .createFile(parent: url, name: name, format: format)
         case .folder(let url): .createFolder(parent: url, name: name)
         case .item(let url): .rename(source: url, name: name)
         }

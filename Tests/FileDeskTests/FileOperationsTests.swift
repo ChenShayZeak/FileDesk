@@ -7,6 +7,49 @@ final class FileOperationsTests: XCTestCase {
     private let fs = FileSystem()
     private let sessions = EncryptedFileSessions()
 
+    func testNewFileMenuFormatsCreateReadableDocumentsInChosenFolder() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for format in NewFileFormat.allCases {
+            let prompt = NamePrompt(title: "", initialName: "", target: .file(directory, format))
+            let result = await fs.perform(prompt.operation("草稿.v1"))
+            let name = "草稿.v1." + format.rawValue
+            XCTAssertEqual(result.outputName, name, result.failures.joined())
+            let data = try Data(contentsOf: directory.appendingPathComponent(name))
+            switch format {
+            case .txt, .md, .csv:
+                XCTAssertTrue(data.isEmpty)
+            case .rtf:
+                XCTAssertNotNil(NSAttributedString(rtf: data, documentAttributes: nil))
+            case .json:
+                XCTAssertEqual(try JSONSerialization.jsonObject(with: data) as? [String: String], [:])
+            case .html:
+                let document = try XMLDocument(data: data, options: .documentTidyHTML)
+                XCTAssertEqual(try document.nodes(forXPath: "/html/body").count, 1)
+            }
+        }
+    }
+
+    func testNewFileRejectsInvalidNamesAndNeverOverwrites() async throws {
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let prompt = NamePrompt(title: "", initialName: "", target: .file(directory, .txt))
+        let result = await fs.perform(prompt.operation("笔记.TXT"))
+        XCTAssertEqual(result.outputName, "笔记.TXT")
+        let file = directory.appendingPathComponent("笔记.TXT")
+        let original = Data("existing text".utf8)
+        try original.write(to: file)
+        let link = directory.appendingPathComponent("link.txt")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+        for name in ["笔记.TXT", "link", "  ", ".", "..", "../escape", "bad:name"] {
+            let rejected = await fs.perform(prompt.operation(name))
+            XCTAssertEqual(rejected.completed, 0, name)
+            XCTAssertFalse(rejected.failures.isEmpty, name)
+        }
+        XCTAssertEqual(try Data(contentsOf: file), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 2)
+    }
+
     @MainActor
     func testNativeDragExportsEachSelectedFileAsAFileURL() throws {
         let folder = try makeDirectory()

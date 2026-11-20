@@ -76,6 +76,7 @@ enum FileSort: String, CaseIterable, Identifiable, Sendable {
 }
 
 enum FileOperation: Sendable {
+    case createFile(parent: URL, name: String, format: NewFileFormat)
     case createFolder(parent: URL, name: String)
     case rename(source: URL, name: String)
     case copy(sources: [URL], destination: URL)
@@ -90,6 +91,7 @@ enum FileOperation: Sendable {
 
     var completion: String {
         switch self {
+        case .createFile: String(localized: "已新建文件")
         case .createFolder: String(localized: "已新建文件夹")
         case .rename: String(localized: "已重命名")
         case .copy: String(localized: "已复制文件")
@@ -275,6 +277,16 @@ actor FileSystem {
         }
 
         switch operation {
+        case .createFile(let parent, let name, let format):
+            attempt(name) {
+                var target = try namedURL(parent: parent, name: name)
+                if !name.lowercased().hasSuffix("." + format.rawValue) {
+                    target.appendPathExtension(format.rawValue)
+                }
+                try requireAvailable(target)
+                try format.initialContents.write(to: target, options: .withoutOverwriting)
+                result.outputName = target.lastPathComponent
+            }
         case .createFolder(let parent, let name):
             attempt(name) {
                 let target = try namedURL(parent: parent, name: name)
