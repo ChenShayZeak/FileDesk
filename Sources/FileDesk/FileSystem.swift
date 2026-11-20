@@ -84,6 +84,7 @@ enum FileOperation: Sendable {
     case setHidden(sources: [URL], hidden: Bool)
     case setTags(folder: URL, tags: [String])
     case encrypt(source: URL, password: String)
+    case compress(sources: [URL], in: URL, format: ArchiveFormat)
     case extract(URL, installIfMissing: Bool = false)
     case trashEncryptedOriginal(EncryptedCopy)
 
@@ -97,6 +98,7 @@ enum FileOperation: Sendable {
         case .setHidden(_, let hidden): hidden ? String(localized: "已隐藏项目") : String(localized: "已取消隐藏")
         case .setTags: String(localized: "已更新文件夹标签")
         case .encrypt: String(localized: "已生成加密副本")
+        case .compress: String(localized: "已创建压缩包")
         case .extract: String(localized: "已解压到")
         }
     }
@@ -356,6 +358,19 @@ actor FileSystem {
                 let values = try currentFolder.resourceValues(forKeys: [.isDirectoryKey])
                 guard values.isDirectory == true else { throw CocoaError(.fileReadUnknown) }
                 try (currentFolder as NSURL).setResourceValue(tags, forKey: .tagNamesKey)
+            }
+        case .compress(let sources, let directory, let format):
+            guard let first = sources.first else { break }
+            let name = sources.count == 1 ? first.lastPathComponent : String(localized: "归档")
+            attempt(name) {
+                var target = directory.appendingPathComponent(name + "." + format.rawValue)
+                var suffix = 2
+                while entryExists(target) {
+                    target = directory.appendingPathComponent("\(name) \(suffix).\(format.rawValue)")
+                    suffix += 1
+                }
+                try withStagedOutput(target) { try format.write(sources, relativeTo: directory, to: $0) }
+                result.outputName = target.lastPathComponent
             }
         case .extract(let source, let installIfMissing):
             guard Self.item(at: source).isArchive else {

@@ -560,7 +560,9 @@ final class BrowserModel {
     func perform(_ operation: FileOperation) {
         guard !isWorking else { return }
         status = nil
-        if case .extract(_, installIfMissing: true) = operation {
+        if case .compress = operation {
+            workingMessage = String(localized: "正在创建压缩包…")
+        } else if case .extract(_, installIfMissing: true) = operation {
             workingMessage = String(localized: "正在准备 7-Zip 并解压…")
         }
         isWorking = true

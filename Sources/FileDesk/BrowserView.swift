@@ -714,6 +714,17 @@ struct BrowserView: View {
             .fixedSize()
     }
 
+    private func compressionMenu(_ items: [FileItem]) -> some View {
+        Menu("压缩为") {
+            ForEach(ArchiveFormat.allCases, id: \.self) { format in
+                Button(format.rawValue.uppercased()) {
+                    model.perform(.compress(sources: items.map(\.url), in: model.directory, format: format))
+                }
+            }
+        }
+        .disabled(items.isEmpty || model.isWorking)
+    }
+
     @ViewBuilder
     private func visibilityActions(_ items: [FileItem]) -> some View {
         let visible = items.filter { !$0.isHidden }
@@ -747,6 +758,7 @@ struct BrowserView: View {
         Button("移到…") { model.chooseDirectory(for: items) }
             .disabled(model.isWorking)
         Button("在访达中显示") { model.reveal(items) }
+        compressionMenu(items)
         visibilityActions(items)
         Divider()
         Button("移到废纸篓…", role: .destructive) { trashItems = items }
@@ -845,6 +857,7 @@ struct BrowserView: View {
                     .disabled(model.isWorking || model.readError != nil)
                 Button("移到…") { model.chooseDirectory(for: model.selectedItems) }
                     .disabled(model.selection.isEmpty || model.isWorking)
+                compressionMenu(model.selectedItems)
                 visibilityActions(model.selectedItems)
                 Button("移到废纸篓…", role: .destructive) { trashItems = model.selectedItems }
                     .disabled(model.selection.isEmpty || model.isWorking)

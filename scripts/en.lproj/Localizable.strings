@@ -251,3 +251,8 @@
 "正在重新启动文件桌…" = "Restarting FileDesktop…";
 "当前版本为 %@。下载并编译新版本？安装完成后文件桌会自动重启。" = "You have version %@. Download and build the update? FileDesktop will restart automatically after installation.";
 "未能自动重启。请退出并重新打开文件桌。\n%@" = "FileDesktop could not restart automatically. Quit and reopen it to use the update.\n%@";
+"压缩为" = "Compress As";
+"正在创建压缩包…" = "Creating archive…";
+"已创建压缩包" = "Created archive";
+"无法创建压缩包。" = "Could not create the archive.";
+"归档" = "Archive";
