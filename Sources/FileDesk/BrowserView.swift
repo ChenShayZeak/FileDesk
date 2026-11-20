@@ -775,7 +775,15 @@ struct BrowserView: View {
         HStack(spacing: 10) {
             let count = model.selection.count
             Text(count == 0 ? String(localized: "\(model.items.count) 个项目") : String(localized: "已选中 \(count) 个项目"))
-            if model.isWorking {
+            if let stage = model.updateStage {
+                ProgressView(value: stage == .checking ? nil : Double(stage.rawValue),
+                             total: Double(UpdateStage.restarting.rawValue))
+                    .progressViewStyle(.linear)
+                    .controlSize(.small)
+                    .frame(width: 72)
+                    .accessibilityLabel(Text(stage.message))
+                Text(stage.message).lineLimit(1)
+            } else if model.isWorking {
                 ProgressView().controlSize(.mini)
                 Text(model.workingMessage)
             } else if model.isLoading && !model.searchTerm.isEmpty {

@@ -9,16 +9,16 @@
 ### 功能
 
 - **浏览与搜索**。在列表或网格中浏览文件，通过路径补全直达目录，按文件名或文件夹标签递归搜索。隐藏项目有独立标记，搜索结果显示所在目录。
-- **文件操作**。支持范围多选、复制粘贴、移动、重命名、标签、快速预览和移到废纸篓。可与访达互相复制粘贴，移动重名项目时可逐项选择替换或跳过。1.0.7 新增批量隐藏和取消隐藏，使用 macOS 隐藏属性，保留原文件名。
+- **文件操作**。支持范围多选、复制粘贴、移动、重命名、标签、快速预览和移到废纸篓。可与访达互相复制粘贴，移动重名项目时可逐项选择替换或跳过。支持批量隐藏和取消隐藏，使用 macOS 隐藏属性，保留原文件名。
 - **加密与解压**。给单个文件创建受密码保护的 `.filedesk` 副本，解锁后可预览、编辑并重新加密。压缩包可用 7-Zip 就地解压。
 - **工作区与外观**。侧栏提供常用位置、收藏和最近使用。左右侧栏和底部历史路径面板均可收起。设置支持简体中文、英文、浅色或深色外观，以及自定义强调色。
 
 ### 部署
 
-运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.7：
+运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.8：
 
 ```bash
-git clone --branch 1.0.7 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.8 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -26,9 +26,9 @@ open dist
 
 在打开的访达窗口中，将 `FileDesktop.app` 拖入「应用程序」。从那里双击启动，或用聚焦搜索 `FileDesktop`。首次访问桌面、文稿、下载或外接磁盘时，macOS 可能会请求权限。
 
-**更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。完成后退出并重新打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
+**更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。从 1.0.8 开始，窗口底部会显示各阶段的进度，安装成功后自动重启。从更早版本首次升到 1.0.8 时，仍需按旧版提示退出并重新打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
 
-**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.7` 或 `v1.0.7`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
+**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.8` 或 `v1.0.8`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
 
 ### 用法
 
@@ -61,16 +61,16 @@ FileDesktop is a macOS file manager built with SwiftUI and AppKit. Browsing, sea
 ### Features
 
 - **Browsing and search.** Browse in list or grid view, jump to folders with path completion, and search subfolders by filename or folder tag. Hidden items have a badge. Search results show their enclosing folder.
-- **File operations.** Select ranges, copy and paste, move, rename, tag, preview, and move items to the Trash. Copy and paste between FileDesktop and Finder, or choose whether to replace each conflicting item when moving files. Version 1.0.7 adds bulk hide and unhide using the macOS hidden flag, preserving filenames.
+- **File operations.** Select ranges, copy and paste, move, rename, tag, preview, and move items to the Trash. Copy and paste between FileDesktop and Finder, or choose whether to replace each conflicting item when moving files. Hide or unhide multiple items using the macOS hidden flag while preserving filenames.
 - **Encryption and extraction.** Create a password-protected `.filedesk` copy of a file, unlock it to preview or edit, then save changes back to the encrypted copy. Extract archives in place with 7-Zip.
 - **Workspace and appearance.** The sidebar gives you common locations, favorites, and recently opened files. Both sidebars and the path history panel can be collapsed. Settings include English and Simplified Chinese, light and dark appearances, and a custom accent color.
 
 ### Deployment
 
-FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.7, run:
+FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.8, run:
 
 ```bash
-git clone --branch 1.0.7 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.8 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -78,9 +78,9 @@ open dist
 
 Drag `FileDesktop.app` from the Finder window into Applications. Double-click it there or search for `FileDesktop` in Spotlight. macOS may ask for permission the first time you access Desktop, Documents, Downloads, or an external drive.
 
-**Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. Quit and reopen to finish. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
+**Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. Starting with 1.0.8, a progress bar at the bottom of the window tracks each stage and FileDesktop restarts after a successful installation. When upgrading from an earlier version to 1.0.8, follow the old updater’s prompt to quit and reopen the app. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
 
-**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.7` or `v1.0.7`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
+**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.8` or `v1.0.8`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
 
 ### Usage
 

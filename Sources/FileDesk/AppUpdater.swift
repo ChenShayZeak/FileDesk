@@ -19,6 +19,21 @@ struct AppRelease: Equatable, Sendable {
     }
 }
 
+enum UpdateStage: Int {
+    case checking, downloading, building, verifying, installing, restarting
+
+    var message: String {
+        switch self {
+        case .checking: String(localized: "正在检查 GitHub 版本…")
+        case .downloading: String(localized: "正在下载更新源码…")
+        case .building: String(localized: "正在编译新版本…")
+        case .verifying: String(localized: "正在校验应用…")
+        case .installing: String(localized: "正在安装更新…")
+        case .restarting: String(localized: "正在重新启动文件桌…")
+        }
+    }
+}
+
 actor AppUpdater {
     private let repository: String
 
@@ -54,10 +69,12 @@ actor AppUpdater {
         return version
     }
 
-    func install(_ release: AppRelease, at app: URL) throws {
+    func install(_ release: AppRelease, at app: URL,
+                 report: @MainActor (UpdateStage) -> Void) async throws -> Bool {
         let manager = FileManager.default
         let oldVersion = try Self.installedVersion(at: app)
-        guard release.version.compare(oldVersion, options: .numeric) == .orderedDescending else { return }
+        guard release.version.compare(oldVersion, options: .numeric) == .orderedDescending else { return false }
+        await report(.downloading)
         let source = manager.temporaryDirectory.appending(path: UUID().uuidString)
         try manager.createDirectory(at: source, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? manager.removeItem(at: source) }
@@ -68,9 +85,11 @@ actor AppUpdater {
         let fetched = try run("/usr/bin/git", ["rev-parse", ref], in: source)
         guard fetched == release.objectID else { throw UpdateError(String(localized: "版本标签已更改，请重新检查更新。")) }
         try run("/usr/bin/git", ["checkout", "--quiet", "--detach", ref], in: source)
+        await report(.building)
         try run("/bin/bash", ["scripts/build-app.sh"], in: source, version: release.version)
 
         // Stage beside the installed app so the final swap is atomic and on the same volume.
+        await report(.verifying)
         let stage = app.deletingLastPathComponent().appending(path: ".FileDesk-update-" + UUID().uuidString)
         try manager.createDirectory(at: stage, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? manager.removeItem(at: stage) }
@@ -81,12 +100,14 @@ actor AppUpdater {
               manager.isExecutableFile(atPath: replacement.appending(path: "Contents/MacOS/FileDesk").path) else {
             throw UpdateError(String(localized: "构建出的应用与选定版本不匹配。"))
         }
+        await report(.installing)
         guard try Self.installedVersion(at: app) == oldVersion else {
             throw UpdateError(String(localized: "已安装的版本发生变化，请重新检查更新。"))
         }
         guard renamex_np(replacement.path, app.path, UInt32(RENAME_SWAP)) == 0 else {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
         }
+        return true
     }
 
     @discardableResult

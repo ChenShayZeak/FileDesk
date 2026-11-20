@@ -43,6 +43,7 @@ final class BrowserModel {
     private(set) var customFavorites: [Favorite] = []
     private(set) var isLoading = false
     private(set) var isWorking = false
+    private(set) var updateStage: UpdateStage?
     private(set) var workingMessage = String(localized: "正在处理文件…")
     private(set) var readError: String?
     private(set) var status: String?
@@ -199,10 +200,10 @@ final class BrowserModel {
     func checkForUpdate() async {
         guard !isWorking, session == nil else { return }
         isWorking = true
-        workingMessage = String(localized: "正在检查 GitHub 版本…")
+        updateStage = .checking
         defer {
             isWorking = false
-            workingMessage = String(localized: "正在处理文件…")
+            updateStage = nil
         }
         let updater = AppUpdater()
         let alert = NSAlert()
@@ -212,14 +213,24 @@ final class BrowserModel {
                 if release.version.compare(current, options: .numeric) == .orderedDescending {
                     let confirm = NSAlert()
                     confirm.messageText = String(localized: "发现新版本 \(release.version)")
-                    confirm.informativeText = String(localized: "当前版本为 \(current)。从 GitHub 拉取该标签的源码，在此 Mac 上编译并更新文件桌？")
+                    confirm.informativeText = String(localized: "当前版本为 \(current)。下载并编译新版本？安装完成后文件桌会自动重启。")
                     confirm.addButton(withTitle: String(localized: "安装更新"))
                     confirm.addButton(withTitle: String(localized: "取消")).keyEquivalent = "\u{1b}"
                     guard confirm.runModal() == .alertFirstButtonReturn else { return }
-                    workingMessage = String(localized: "正在下载源码并编译 \(release.version)…")
-                    try await updater.install(release, at: app)
-                    alert.messageText = String(localized: "已安装 \(release.version)")
-                    alert.informativeText = String(localized: "退出并重新打开文件桌即可使用新版本。")
+                    guard try await updater.install(release, at: app, report: { self.updateStage = $0 }) else { return }
+                    updateStage = .restarting
+                    do {
+                        let configuration = NSWorkspace.OpenConfiguration()
+                        configuration.createsNewApplicationInstance = true
+                        _ = try await NSWorkspace.shared.openApplication(at: app, configuration: configuration)
+                        // The quit delegate refuses termination while a file operation is active.
+                        isWorking = false
+                        NSApp.terminate(nil)
+                        return
+                    } catch {
+                        alert.messageText = String(localized: "已安装 \(release.version)")
+                        alert.informativeText = String(localized: "未能自动重启。请退出并重新打开文件桌。\n\(error.localizedDescription)")
+                    }
                 } else {
                     alert.messageText = String(localized: "已是最新版本")
                     alert.informativeText = String(localized: "已安装版本为 \(current)。")
@@ -232,6 +243,8 @@ final class BrowserModel {
             alert.messageText = String(localized: "更新失败")
             alert.informativeText = error.localizedDescription
         }
+        updateStage = nil
+        isWorking = false
         alert.addButton(withTitle: String(localized: "好"))
         alert.runModal()
     }
