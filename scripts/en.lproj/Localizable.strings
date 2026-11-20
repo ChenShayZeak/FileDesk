@@ -261,3 +261,4 @@
 "已新建文件" = "Created file";
 "新建文件" = "New File";
 "新建文件（.%@）" = "New File (.%@)";
+"↑ ↓ 选择最近路径，回车前往，或继续输入子目录。" = "Use ↑ or ↓ to select a recent folder. Press Return to open it or type a subfolder name.";

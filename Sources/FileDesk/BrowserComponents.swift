@@ -216,55 +216,93 @@ struct BrowserPrompt: Identifiable {
     let content: Content
 }
 
+struct FolderPathInput {
+    private(set) var text = ""
+    private(set) var query = ""
+    private(set) var selected: Int?
+
+    mutating func edit(_ value: String) {
+        // SwiftUI also echoes programmatic previews through the text field binding.
+        guard value != text else { return }
+        text = value
+        query = value
+        selected = nil
+    }
+
+    func candidates(recent: [String], completions: [String], completedQuery: String) -> [String] {
+        if query.isEmpty { return Array(recent.prefix(5)) }
+        return query == completedQuery ? completions : []
+    }
+
+    mutating func move(down: Bool, in candidates: [String]) {
+        guard !candidates.isEmpty else { return }
+        let last = candidates.count - 1
+        let index = down ? min((selected ?? -1) + 1, last) : max((selected ?? candidates.count) - 1, 0)
+        selected = index
+        // Preview a row without replacing the query that produced the list.
+        text = Self.folderPath(candidates[index])
+    }
+
+    mutating func accept(_ candidate: String) {
+        text = Self.folderPath(candidate)
+        query = text
+        selected = nil
+    }
+
+    private static func folderPath(_ path: String) -> String {
+        path.hasSuffix("/") ? path : path + "/"
+    }
+}
+
 struct GoToFolderSheet: View {
     @Environment(\.browserAccent) private var accent
     let model: BrowserModel
     @Environment(\.dismiss) private var dismiss
     @FocusState private var pathFocused: Bool
-    @State private var path = ""
+    @State private var input = FolderPathInput()
     @State private var error: String?
     @State private var suggestions: [String] = []
     @State private var suggestedFor = ""
-    @State private var selected = 0
 
     var body: some View {
-        let visibleSuggestions = suggestedFor == path ? suggestions : []
+        let visibleSuggestions = input.candidates(recent: model.recentPaths, completions: suggestions, completedQuery: suggestedFor)
         VStack(alignment: .leading, spacing: 14) {
             Text("前往文件夹").font(.headline)
-            TextField("输入路径，例如 ~/Downloads", text: $path)
+            TextField("输入路径，例如 ~/Downloads", text: Binding(get: { input.text }, set: { input.edit($0) }))
                 .textFieldStyle(.roundedBorder)
                 .focused($pathFocused)
-                .onChange(of: path) { error = nil }
+                .onSubmit(go)
+                .onChange(of: input.text) { error = nil }
                 .onKeyPress(keys: [.tab, .downArrow, .upArrow]) { key in
                     guard key.modifiers.isDisjoint(with: [.command, .control, .option, .shift]) else { return .ignored }
-                    if key.key == .tab, !path.isEmpty, suggestedFor != path { return .handled }
-                    guard visibleSuggestions.indices.contains(selected) else {
-                        return .ignored
+                    guard !visibleSuggestions.isEmpty else {
+                        return key.key == .tab && !input.query.isEmpty && suggestedFor != input.query ? .handled : .ignored
                     }
-                    switch key.key {
-                    case .tab: path = visibleSuggestions[selected]
-                    case .downArrow: selected = min(selected + 1, visibleSuggestions.count - 1)
-                    default: selected = max(selected - 1, 0)
+                    if key.key == .tab {
+                        let index = input.selected ?? 0
+                        if visibleSuggestions.indices.contains(index) { input.accept(visibleSuggestions[index]) }
+                    } else {
+                        input.move(down: key.key == .downArrow, in: visibleSuggestions)
                     }
                     return .handled
                 }
-                .task(id: path) {
-                    let input = path
-                    let matches = await FileSystem.folderCompletions(for: input, relativeTo: model.directory, showHidden: model.showHidden)
-                    guard !Task.isCancelled, path == input else { return }
+                .task(id: input.query) {
+                    let query = input.query
+                    guard !query.isEmpty else { return }
+                    let matches = await FileSystem.folderCompletions(for: query, relativeTo: model.directory, showHidden: model.showHidden)
+                    guard !Task.isCancelled, input.query == query else { return }
                     suggestions = matches
-                    selected = 0
-                    suggestedFor = input
+                    suggestedFor = query
                 }
             ScrollViewReader { reader in
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(visibleSuggestions.indices, id: \.self) { index in
                             Button {
-                                path = visibleSuggestions[index]
+                                input.accept(visibleSuggestions[index])
                                 pathFocused = true
                             } label: {
-                                Label(visibleSuggestions[index], systemImage: "folder")
+                                Label(visibleSuggestions[index], systemImage: input.query.isEmpty ? "clock" : "folder")
                                     .lineLimit(1)
                                     .truncationMode(.head)
                                     .padding(.horizontal, 6)
@@ -272,37 +310,44 @@ struct GoToFolderSheet: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .background(index == selected ? accent.opacity(0.13) : .clear)
-                            .accessibilityAddTraits(index == selected ? .isSelected : [])
+                            .background(index == input.selected ? accent.opacity(0.13) : .clear)
+                            .accessibilityAddTraits(index == input.selected ? .isSelected : [])
                         }
                     }
                 }
                 // Keep the sheet and its text field stationary as completions change.
                 .frame(height: 5 * 25)
-                .onChange(of: selected) { reader.scrollTo(selected) }
-                .onChange(of: suggestedFor) { reader.scrollTo(0) }
+                .onChange(of: input.selected) { _, index in
+                    if let index { reader.scrollTo(index) }
+                }
+                .onChange(of: visibleSuggestions) { reader.scrollTo(0, anchor: .top) }
             }
-            Text(error ?? String(localized: "↑ ↓ 选择文件夹，Tab 补全，回车前往。"))
+            Text(error ?? (input.query.isEmpty && !visibleSuggestions.isEmpty
+                            ? String(localized: "↑ ↓ 选择最近路径，回车前往，或继续输入子目录。")
+                            : String(localized: "↑ ↓ 选择文件夹，Tab 补全，回车前往。")))
                 .font(.caption)
                 .foregroundStyle(error == nil ? Color.secondary : .red)
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("前往") {
-                    if model.goToFolder(path) {
-                        dismiss()
-                    } else {
-                        error = String(localized: "找不到这个文件夹，请检查路径和访问权限。")
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(path.isEmpty)
+                Button("前往", action: go)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(input.text.isEmpty)
             }
         }
         .padding(22)
         .frame(width: 430)
         .onAppear { pathFocused = true }
+    }
+
+    private func go() {
+        guard !input.text.isEmpty else { return }
+        if model.goToFolder(input.text) {
+            dismiss()
+        } else {
+            error = String(localized: "找不到这个文件夹，请检查路径和访问权限。")
+        }
     }
 }
 

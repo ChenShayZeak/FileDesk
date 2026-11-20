@@ -279,6 +279,38 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertEqual(visible.map(\.name), ["普通.txt"])
     }
 
+    func testGoToFolderPreviewsHistoryUntilTypingAndAcceptsACompletion() {
+        var input = FolderPathInput()
+        let recent = ["/One", "/Two", "/Three", "/Four", "/", "/Six"]
+        let history = input.candidates(recent: recent, completions: [], completedQuery: "")
+        XCTAssertEqual(history, Array(recent.prefix(5)))
+        input.move(down: true, in: history)
+        XCTAssertEqual(input.text, "/One/")
+        input.edit(input.text) // The native field editor echoes the preview.
+        XCTAssertEqual(input.query, "")
+        input.move(down: true, in: history)
+        XCTAssertEqual(input.text, "/Two/")
+        input.move(down: false, in: history)
+        XCTAssertEqual(input.text, "/One/")
+        XCTAssertEqual(input.candidates(recent: recent, completions: [], completedQuery: ""), history)
+
+        input.edit(input.text + "Do")
+        XCTAssertNil(input.selected)
+        let matches = ["/One/Docs/", "/One/Downloads/"]
+        XCTAssertTrue(input.candidates(recent: recent, completions: matches, completedQuery: "/One/D").isEmpty)
+        let choices = input.candidates(recent: recent, completions: matches, completedQuery: "/One/Do")
+        XCTAssertEqual(choices, matches)
+        input.move(down: true, in: choices)
+        input.move(down: true, in: choices)
+        XCTAssertEqual(input.text, "/One/Downloads/")
+        XCTAssertEqual(input.query, "/One/Do")
+        input.accept(choices[1])
+        XCTAssertEqual(input.query, "/One/Downloads/")
+        input.edit("")
+        input.move(down: false, in: input.candidates(recent: recent, completions: matches, completedQuery: "/One/Do"))
+        XCTAssertEqual(input.text, "/")
+    }
+
     func testFolderCompletionsPreserveTypedPathsAndOnlyOfferDirectories() async throws {
         let base = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: base) }
