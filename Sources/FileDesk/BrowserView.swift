@@ -240,50 +240,35 @@ struct BrowserView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 34, height: 34)
-                    .foregroundStyle(.white)
-                    .background(accent, in: RoundedRectangle(cornerRadius: 10))
-                    .accessibilityHidden(true)
-                Text("文件桌")
-                    .font(.system(size: 16, weight: .semibold))
-            }
-            .padding(.horizontal, 17)
-            .padding(.top, 43)
-            .padding(.bottom, 25)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 4) {
+                sidebarLabel(String(localized: "常用位置"))
+                ForEach(model.standardFavorites) { favorite in
+                    favoriteButton(favorite)
+                }
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
-                    sidebarLabel(String(localized: "常用位置"))
-                    ForEach(model.standardFavorites) { favorite in
+                if !model.customFavorites.isEmpty {
+                    sidebarLabel(String(localized: "我的收藏"))
+                        .padding(.top, 19)
+                    ForEach(model.customFavorites) { favorite in
                         favoriteButton(favorite)
                     }
-
-                    if !model.customFavorites.isEmpty {
-                        sidebarLabel(String(localized: "我的收藏"))
-                            .padding(.top, 19)
-                        ForEach(model.customFavorites) { favorite in
-                            favoriteButton(favorite)
-                        }
-                    }
-                    sidebarLabel(String(localized: "最近使用"))
-                        .padding(.top, 19)
-                    if model.recentFilePaths.isEmpty {
-                        Text("尚未打开文件")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 9)
-                    }
-                    ForEach(model.recentFilePaths, id: \.self) { path in
-                        recentFileButton(path)
-                    }
                 }
-                .padding(.horizontal, 10)
+                sidebarLabel(String(localized: "最近使用"))
+                    .padding(.top, 19)
+                if model.recentFilePaths.isEmpty {
+                    Text("尚未打开文件")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                }
+                ForEach(model.recentFilePaths, id: \.self) { path in
+                    recentFileButton(path)
+                }
             }
+            .padding(.horizontal, 10)
         }
+        .padding(.top, 12)
     }
 
     private func sidebarLabel(_ title: String) -> some View {
@@ -376,8 +361,6 @@ struct BrowserView: View {
             .padding(2)
             .background(BrowserColors.control, in: RoundedRectangle(cornerRadius: 8))
 
-            Spacer(minLength: 0)
-
             HStack(spacing: 6) {
                 Button {
                     searchFocused = true
@@ -408,7 +391,7 @@ struct BrowserView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(minWidth: 125, idealWidth: 190, maxWidth: 214)
+            .frame(minWidth: 0, maxWidth: .infinity)
             .frame(height: 32)
             .background(BrowserColors.control, in: RoundedRectangle(cornerRadius: 8))
 
