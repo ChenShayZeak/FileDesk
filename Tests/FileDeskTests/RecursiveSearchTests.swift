@@ -39,9 +39,19 @@ final class RecursiveSearchTests: XCTestCase {
         XCTAssertEqual(model.items.map(\.url.path), paths.prefix(3).map { directory.appendingPathComponent($0).path }.sorted())
         XCTAssertEqual(Set(model.items.map(model.searchLocation)), [String(localized: "当前文件夹"), "A", "B/Deep"])
 
+        let selected = directory.appendingPathComponent("A/Report.txt")
+        model.selectItem(selected, modifiers: [])
+        let visibleResults = model.items.map(\.url)
         model.showHidden = true
+        XCTAssertEqual(model.items.map(\.url), visibleResults)
         try await waitForResults()
+        XCTAssertEqual(model.selection, [selected])
         XCTAssertEqual(Set(model.items.map(\.url.path)), Set(paths.prefix(4).map { directory.appendingPathComponent($0).path }))
+        model.showHidden = false
+        try await waitForResults()
+        XCTAssertEqual(model.items.map(\.url), visibleResults)
+        XCTAssertEqual(model.selection, [selected])
+        model.showHidden = true
         model.query = "归档"
         try await waitForResults()
         XCTAssertEqual(model.items.map(\.url), [taggedFolder])

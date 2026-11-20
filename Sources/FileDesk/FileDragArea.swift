@@ -11,17 +11,20 @@ extension FileItem {
 // Take the initiating event directly from AppKit so a SwiftUI update cannot lose the drag.
 struct FileDragArea: NSViewRepresentable {
     var urls: () -> [URL]
+    var mouseDown: () -> Void
     var click: (NSEvent) -> Void
 
     func makeNSView(context: Context) -> DragView { DragView() }
 
     func updateNSView(_ view: DragView, context: Context) {
         view.urls = urls
+        view.onMouseDown = mouseDown
         view.click = click
     }
 
     final class DragView: NSView, NSDraggingSource {
         var urls: () -> [URL] = { [] }
+        var onMouseDown: () -> Void = {}
         var click: (NSEvent) -> Void = { _ in }
         private var start: NSPoint?
 
@@ -37,6 +40,7 @@ struct FileDragArea: NSViewRepresentable {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
         override func mouseDown(with event: NSEvent) {
+            onMouseDown()
             start = event.locationInWindow
         }
 

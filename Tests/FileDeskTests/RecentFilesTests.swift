@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import FileDesk
 
@@ -36,6 +37,49 @@ final class RecentFilesTests: XCTestCase {
         defer { if let trashed { try? manager.removeItem(at: trashed as URL) } }
         await relaunched.refreshRecentFiles()
         XCTAssertTrue(relaunched.recentFilePaths.isEmpty)
+    }
+
+    @MainActor
+    func testUndoTrashRestoresBatchWithoutOverwritingANewFile() async throws {
+        let manager = FileManager.default
+        let suite = UUID().uuidString
+        let root = manager.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        try manager.createDirectory(at: root, withIntermediateDirectories: true)
+        let occupied = root.appendingPathComponent(suite + ".txt")
+        let other = root.appendingPathComponent(suite + "-other.txt")
+        let contents = Data("original".utf8)
+        try contents.write(to: occupied)
+        try contents.write(to: other)
+        let bookmark = try occupied.bookmarkData()
+        defer {
+            try? manager.removeItem(at: root)
+            preferences.removePersistentDomain(forName: suite)
+        }
+        let model = BrowserModel(preferences: preferences)
+        model.navigate(to: root)
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        undo.beginUndoGrouping()
+        model.perform(.trash(sources: [occupied, other]), undoManager: undo)
+        let deadline = ContinuousClock.now + .seconds(5)
+        while model.isWorking && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        undo.endUndoGrouping()
+        XCTAssertTrue(undo.canUndo)
+        XCTAssertFalse(manager.fileExists(atPath: occupied.path))
+        XCTAssertFalse(manager.fileExists(atPath: other.path))
+        var stale = false
+        let trashed = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting],
+                              relativeTo: nil, bookmarkDataIsStale: &stale)
+        XCTAssertNotEqual(trashed.standardizedFileURL.path, occupied.standardizedFileURL.path)
+        defer { try? manager.removeItem(at: trashed) }
+        let replacement = Data("replacement".utf8)
+        try replacement.write(to: occupied, options: .withoutOverwriting)
+        undo.undo()
+        XCTAssertEqual(try Data(contentsOf: other), contents)
+        XCTAssertEqual(try Data(contentsOf: occupied), replacement)
+        XCTAssertEqual(try Data(contentsOf: trashed), contents)
+        XCTAssertNotNil(model.notice)
     }
 
     func testRefreshKeepsFilesOnDisconnectedVolume() async {

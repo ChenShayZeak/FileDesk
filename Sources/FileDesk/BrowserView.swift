@@ -9,11 +9,13 @@ struct BrowserView: View {
     @AppStorage("showInspector") private var showInspector = true
     @AppStorage("gridLayout") private var gridLayout = false
     @AppStorage("showPathHistory") private var showPathHistory = false
+    @Environment(\.undoManager) private var undoManager
     @Environment(\.browserAccent) private var accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
     @FocusState private var filesFocused: Bool
     @State private var prompt: BrowserPrompt?
+    @State private var pendingRename: URL?
     @State private var trashItems: [FileItem] = []
 
     private let panelCornerRadius: CGFloat = 18
@@ -47,6 +49,18 @@ struct BrowserView: View {
             try? await Task.sleep(for: .seconds(2))
             if !Task.isCancelled, model.copiedPathsID == id { model.copiedPathsID = nil }
         }
+        .task(id: pendingRename) {
+            guard let url = pendingRename else { return }
+            // Give a second mouse-down the system double-click interval to cancel the rename.
+            do { try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval)) }
+            catch { return }
+            pendingRename = nil
+            guard model.selection == [url], let item = model.selectedItems.first,
+                  filesFocused, !browserDialogPresented, model.session == nil,
+                  model.preview == nil, !model.isWorking, NSApp.mainWindow?.isKeyWindow == true else { return }
+            rename(item)
+        }
+        .onChange(of: model.selection) { pendingRename = nil }
         .quickLookPreview($model.preview)
         .sheet(item: $prompt) { prompt in
             switch prompt.content {
@@ -111,18 +125,20 @@ struct BrowserView: View {
         } message: { notice in
             Text(notice.message)
         }
-        .confirmationDialog(
+        .alert(
             "将选中的项目移到废纸篓？",
             isPresented: Binding(
                 get: { !trashItems.isEmpty },
                 set: { if !$0 { trashItems = [] } }
             ),
-            titleVisibility: .visible,
             presenting: trashItems
         ) { items in
             Button("移到废纸篓", role: .destructive) {
-                model.perform(.trash(sources: items.map(\.url)))
+                model.perform(.trash(sources: items.map(\.url)), undoManager: undoManager)
             }
+            .keyboardShortcut(.defaultAction)
+            Button("取消", role: .cancel) {}
+                .keyboardShortcut(.cancelAction)
         } message: { items in
             Text(items.count == 1 ? items[0].name : String(localized: "已选择 \(items.count) 个项目。"))
         }
@@ -161,9 +177,6 @@ struct BrowserView: View {
                     .padding(.bottom, panelSpacing)
                 HStack(spacing: 0) {
                     filePane(gridWidth: gridWidth)
-                        .focusable()
-                        .focusEffectDisabled()
-                        .focused($filesFocused)
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                         .background(.background)
                         .clipShape(RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous))
@@ -423,7 +436,6 @@ struct BrowserView: View {
                     }
                 }
                 Toggle("显示隐藏文件", isOn: $model.showHidden)
-                    .keyboardShortcut(".", modifiers: [.command, .shift])
                 Button("选择文件夹…") { model.chooseDirectory() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
                 SettingsLink { Label("设置…", systemImage: "gearshape") }
@@ -530,9 +542,9 @@ struct BrowserView: View {
                 .contentShape(Rectangle())
                 .contextMenu { directoryActions }
             } else if gridLayout {
-                fileGrid
+                fileGrid(width: gridWidth)
                     .frame(width: gridWidth)
-                    .transaction { $0.animation = nil }
+                    .animation(nil, value: gridWidth)
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     .clipped()
             } else {
@@ -629,15 +641,19 @@ struct BrowserView: View {
                 open(item)
             }
         }
+        .focused($filesFocused)
         .padding(.horizontal, 12)
     }
 
     private func fileDragArea(for item: FileItem) -> some View {
-        FileDragArea(urls: { model.fileURLsForDrag(startingAt: item.url) }) { event in
+        FileDragArea(urls: { model.fileURLsForDrag(startingAt: item.url) }, mouseDown: { pendingRename = nil }) { event in
             filesFocused = true
             if event.clickCount == 2, event.modifierFlags.intersection([.shift, .command]).isEmpty {
                 model.selection = [item.id]
                 open(item)
+            } else if event.clickCount == 1, model.selection == [item.id],
+                      event.modifierFlags.isDisjoint(with: [.command, .shift, .option, .control]) {
+                pendingRename = item.id
             } else {
                 model.selectItem(item.id, modifiers: event.modifierFlags)
             }
@@ -645,9 +661,13 @@ struct BrowserView: View {
         .accessibilityHidden(true)
     }
 
-    private var fileGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 10)], spacing: 10) {
+    private func fileGrid(width: CGFloat) -> some View {
+        let spacing: CGFloat = 10
+        let padding: CGFloat = 20
+        let columns = max(1, Int((width - 2 * padding + spacing) / (108 + spacing)))
+        let layout = Array(repeating: GridItem(.flexible(), spacing: spacing), count: columns)
+        let grid = ScrollView {
+            LazyVGrid(columns: layout, spacing: spacing) {
                 ForEach(model.items) { item in
                     let selected = model.selection.contains(item.id)
                     Button {
@@ -691,11 +711,26 @@ struct BrowserView: View {
                     .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, padding)
             .padding(.bottom, 16)
         }
         .contentShape(Rectangle())
         .contextMenu { directoryActions }
+
+        return ScrollViewReader { proxy in
+            grid
+                .focusable()
+                .focusEffectDisabled()
+                .focused($filesFocused)
+                .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { key in
+                    guard key.modifiers.intersection([.shift, .command, .control, .option]) == .shift,
+                          !model.selection.isEmpty else { return .ignored }
+                    if let target = model.extendGridSelection(rows: key.key == .upArrow ? -1 : 1, columns: columns) {
+                        proxy.scrollTo(target)
+                    }
+                    return .handled
+                }
+        }
     }
 
     private var newFileMenu: some View {

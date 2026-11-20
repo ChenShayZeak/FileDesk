@@ -110,6 +110,7 @@ struct OperationResult: Sendable {
     var completed = 0
     var failures: [String] = []
     var trashedPaths: [String] = []
+    var undoableTrash: [FileSystem.TrashedItem] = []
     var outputName: String?
     var encryptedCopy: EncryptedCopy?
     var archiveNeedingSevenZip: URL?
@@ -351,7 +352,12 @@ actor FileSystem {
         case .trash(let sources):
             for source in sources {
                 attempt(source.lastPathComponent) {
-                    try manager.trashItem(at: source, resultingItemURL: nil)
+                    let identity = try MoveEntry(source)
+                    var destination: NSURL?
+                    try manager.trashItem(at: source, resultingItemURL: &destination)
+                    if let destination {
+                        result.undoableTrash.append(TrashedItem(original: source, inTrash: destination as URL, identity: identity))
+                    }
                     result.trashedPaths.append(source.standardizedFileURL.path)
                 }
             }
@@ -485,7 +491,23 @@ actor FileSystem {
     }
 
     // lstat identifies the directory entry itself, including a dangling symlink.
-    private struct MoveEntry: Equatable {
+    struct TrashedItem: Sendable {
+        let original: URL
+        let inTrash: URL
+        fileprivate let identity: MoveEntry
+
+        func restore() throws {
+            guard try identity.sameItem(as: MoveEntry(inTrash)) else { throw CocoaError(.fileReadNoSuchFile) }
+            // Trash is on the source volume. An exclusive rename also protects dangling symlinks at the destination.
+            guard renamex_np(inTrash.path, original.path, UInt32(RENAME_EXCL)) == 0 else {
+                let code = errno
+                if code == EEXIST { throw FileOperationError.destinationExists(original.lastPathComponent) }
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+            }
+        }
+    }
+
+    fileprivate struct MoveEntry: Equatable, Sendable {
         let device: dev_t
         let inode: ino_t
         let seconds: Int

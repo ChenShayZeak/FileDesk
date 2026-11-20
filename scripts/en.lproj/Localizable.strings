@@ -262,3 +262,6 @@
 "新建文件" = "New File";
 "新建文件（.%@）" = "New File (.%@)";
 "↑ ↓ 选择最近路径，回车前往，或继续输入子目录。" = "Use ↑ or ↓ to select a recent folder. Press Return to open it or type a subfolder name.";
+
+"未能还原部分项目" = "Couldn’t Restore Some Items";
+"已还原 %lld 个项目" = "Restored %lld item(s)";

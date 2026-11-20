@@ -12,6 +12,7 @@ struct FileDeskApp: App {
     @State private var model = BrowserModel()
 
     var body: some Scene {
+        @Bindable var model = model
         Window("文件桌", id: "file-desk") {
             BrowserView(model: model)
                 .environment(\.browserAccent, theme.color(customData: customColorData))
@@ -35,6 +36,10 @@ struct FileDeskApp: App {
                 Button("设为默认文件夹浏览器…") {
                     Task { await model.setDefaultApp(Bundle.main.bundleURL, for: .folder) }
                 }
+            }
+            CommandGroup(after: .toolbar) {
+                Toggle("显示隐藏文件", isOn: $model.showHidden)
+                    .keyboardShortcut(".", modifiers: [.command, .shift])
             }
             CommandGroup(after: .help) {
                 Button("检查更新…") {

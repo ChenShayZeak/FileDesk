@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct Favorite: Identifiable {
@@ -73,6 +74,18 @@ final class BrowserModel {
             selectionAnchor = id
         }
     }
+
+    func extendGridSelection(rows: Int, columns: Int) -> URL? {
+        guard let anchor = selectionAnchor, let first = selectedItems.first, let last = selectedItems.last else { return nil }
+        let edge = first.id == anchor ? last.id : first.id
+        guard let index = items.firstIndex(where: { $0.id == edge }) else { return nil }
+        let row = index / columns + rows
+        guard row >= 0, row * columns < items.count else { return nil }
+        let target = items[min(row * columns + index % columns, items.count - 1)].id
+        selectItem(target, modifiers: .shift)
+        return target
+    }
+
     var preview: URL?
     var notice: FileNotice?
     private(set) var session: EncryptedFileSession?
@@ -88,10 +101,10 @@ final class BrowserModel {
     }
     var showHidden: Bool {
         didSet {
+            guard showHidden != oldValue else { return }
             preferences.set(showHidden, forKey: "showHidden")
-            allItems = []
-            replaceItems([])
-            refresh()
+            if !showHidden { allItems.removeAll(where: \.isHidden) }
+            refresh(animateVisibility: true)
         }
     }
     var sort: FileSort = .name {
@@ -310,7 +323,9 @@ final class BrowserModel {
         }
     }
 
-    func refresh() {
+    func refresh() { refresh(animateVisibility: false) }
+
+    private func refresh(animateVisibility: Bool) {
         load?.cancel()
         isLoading = true
         readError = nil
@@ -329,12 +344,15 @@ final class BrowserModel {
                     try await Task.sleep(for: .milliseconds(180))
                     var visible = Set(self?.items.map(\.id) ?? [])
                     snapshot = try await FileSystem.search(directory, term: term, showHidden: showHidden, sort: sort) { batch in
-                        guard !Task.isCancelled else { return }
+                        guard !Task.isCancelled, !animateVisibility else { return }
                         self?.items.append(contentsOf: batch.filter { visible.insert($0.id).inserted })
                     }
                 }
                 guard !Task.isCancelled, let self else { return }
-                replaceItems(snapshot)
+                let animate = animateVisibility && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                withAnimation(animate ? .easeInOut(duration: 0.24) : nil) {
+                    self.replaceItems(snapshot)
+                }
                 isLoading = false
             } catch {
                 guard !Task.isCancelled, let self else { return }
@@ -557,7 +575,21 @@ final class BrowserModel {
         return draft
     }
 
-    func perform(_ operation: FileOperation) {
+    private func restoreFromTrash(_ items: [FileSystem.TrashedItem]) {
+        var failures: [String] = []
+        for item in items.reversed() {
+            do { try item.restore() }
+            catch { failures.append("\(item.original.lastPathComponent) · \(error.localizedDescription)") }
+        }
+        if !failures.isEmpty {
+            notice = FileNotice(title: String(localized: "未能还原部分项目"), message: failures.joined(separator: "\n"))
+        }
+        let restored = items.count - failures.count
+        if restored > 0 { status = String(localized: "已还原 \(restored) 个项目") }
+        refresh()
+    }
+
+    func perform(_ operation: FileOperation, undoManager: UndoManager? = nil) {
         guard !isWorking else { return }
         status = nil
         if case .compress = operation {
@@ -579,6 +611,11 @@ final class BrowserModel {
             guard let self else { return }
             isWorking = false
             workingMessage = String(localized: "正在处理文件…")
+            if let undoManager, !result.undoableTrash.isEmpty {
+                let items = result.undoableTrash
+                undoManager.registerUndo(withTarget: self) { $0.restoreFromTrash(items) }
+                undoManager.setActionName(String(localized: "移到废纸篓"))
+            }
             if !result.trashedPaths.isEmpty {
                 recentFiles.removeAll { entry in
                     result.trashedPaths.contains { entry.path == $0 || entry.path.hasPrefix($0 + "/") }
@@ -613,7 +650,8 @@ final class BrowserModel {
                     encryptedCopy: copy
                 )
             }
-            refresh()
+            if case .setHidden = operation { refresh(animateVisibility: true) }
+            else { refresh() }
         }
     }
 
