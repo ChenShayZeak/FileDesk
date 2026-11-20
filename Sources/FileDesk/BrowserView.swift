@@ -15,7 +15,6 @@ struct BrowserView: View {
     @FocusState private var filesFocused: Bool
     @State private var prompt: BrowserPrompt?
     @State private var trashItems: [FileItem] = []
-    @State private var gridDrag = GridFileDrag()
 
     private let panelCornerRadius: CGFloat = 18
     private let panelSpacing: CGFloat = 8
@@ -205,9 +204,24 @@ struct BrowserView: View {
                 .disabled(!showPathHistory)
                 .accessibilityHidden(!showPathHistory)
                 .animation(panelAnimation, value: showPathHistory)
-                statusBar
-                    .browserGlass(cornerRadius: panelCornerRadius)
-                    .padding(.top, panelSpacing)
+                Group {
+                    if let stage = model.updateStage {
+                        HStack(spacing: 12) {
+                            Text(stage.message)
+                                .font(.callout)
+                            ProgressView(value: stage == .checking ? nil : Double(stage.rawValue),
+                                         total: Double(UpdateStage.restarting.rawValue))
+                                .progressViewStyle(.linear)
+                                .accessibilityLabel(Text(stage.message))
+                        }
+                        .padding(.horizontal, 15)
+                        .frame(height: 33)
+                    } else {
+                        statusBar
+                    }
+                }
+                .browserGlass(cornerRadius: panelCornerRadius)
+                .padding(.top, panelSpacing)
             }
         }
     }
@@ -294,7 +308,7 @@ struct BrowserView: View {
         .help(path)
         .onDrag {
             guard let item = model.recentFile(at: path) else { return NSItemProvider() }
-            return NSItemProvider(object: item.url as NSURL)
+            return item.dragProvider
         }
         .contextMenu {
             Button("从最近使用中移除") { model.removeRecentFile(path) }
@@ -577,25 +591,27 @@ struct BrowserView: View {
                         .foregroundStyle(item.isFolder ? accent : Color.secondary)
                         .frame(width: 19)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .overlay { fileDragArea(for: item) }
                 .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
             }
             .width(min: 125, ideal: 260)
             TableColumn("修改日期") { (item: FileItem) in
-                if let modified = item.modified {
-                    Text(modified.formatted(date: .numeric, time: .shortened))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("—").foregroundStyle(.secondary)
-                }
+                Text(item.modified?.formatted(date: .numeric, time: .shortened) ?? "—")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .overlay { fileDragArea(for: item) }
             }
             .width(min: 97, ideal: 136)
             TableColumn("大小") { (item: FileItem) in
                 Text(item.formattedSize).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .overlay { fileDragArea(for: item) }
             }
             .width(min: 52, ideal: 72)
         } rows: {
             ForEach(model.items) { item in
-                TableRow(item).itemProvider { NSItemProvider(object: item.url as NSURL) }
+                TableRow(item).itemProvider { item.dragProvider }
             }
         }
         .contextMenu(forSelectionType: URL.self) { selection in
@@ -616,6 +632,19 @@ struct BrowserView: View {
         .padding(.horizontal, 12)
     }
 
+    private func fileDragArea(for item: FileItem) -> some View {
+        FileDragArea(urls: { model.fileURLsForDrag(startingAt: item.url) }) { event in
+            filesFocused = true
+            if event.clickCount == 2, event.modifierFlags.intersection([.shift, .command]).isEmpty {
+                model.selection = [item.id]
+                open(item)
+            } else {
+                model.selectItem(item.id, modifiers: event.modifierFlags)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
     private var fileGrid: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 10)], spacing: 10) {
@@ -623,7 +652,7 @@ struct BrowserView: View {
                     let selected = model.selection.contains(item.id)
                     Button {
                         filesFocused = true
-                        model.selectGridItem(item.id, modifiers: NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags)
+                        model.selectItem(item.id, modifiers: NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags)
                     } label: {
                         VStack(spacing: 10) {
                             Image(systemName: item.symbol)
@@ -656,15 +685,7 @@ struct BrowserView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { _ in
-                        gridDrag.begin(urls: model.fileURLsForDrag(startingAt: item.url))
-                    })
-                    .simultaneousGesture(TapGesture(count: 2).onEnded {
-                        let modifiers = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
-                        guard modifiers.intersection([.shift, .command]).isEmpty else { return }
-                        model.selection = [item.id]
-                        open(item)
-                    })
+                    .overlay { fileDragArea(for: item) }
                     .contextMenu { itemActions(selected ? model.selectedItems : [item]) }
                     .accessibilityAddTraits(selected ? .isSelected : [])
                     .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
@@ -787,15 +808,7 @@ struct BrowserView: View {
         HStack(spacing: 10) {
             let count = model.selection.count
             Text(count == 0 ? String(localized: "\(model.items.count) 个项目") : String(localized: "已选中 \(count) 个项目"))
-            if let stage = model.updateStage {
-                ProgressView(value: stage == .checking ? nil : Double(stage.rawValue),
-                             total: Double(UpdateStage.restarting.rawValue))
-                    .progressViewStyle(.linear)
-                    .controlSize(.small)
-                    .frame(width: 72)
-                    .accessibilityLabel(Text(stage.message))
-                Text(stage.message).lineLimit(1)
-            } else if model.isWorking {
+            if model.isWorking {
                 ProgressView().controlSize(.mini)
                 Text(model.workingMessage)
             } else if model.isLoading && !model.searchTerm.isEmpty {

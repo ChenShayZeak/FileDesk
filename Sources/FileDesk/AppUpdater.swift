@@ -110,6 +110,21 @@ actor AppUpdater {
         return true
     }
 
+    // Launch Services must see the old process exit before it opens the replaced bundle.
+    static func relaunchAfterExit(_ app: URL) throws {
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/sh")
+        helper.arguments = ["-c", """
+            while /bin/kill -0 "$1" 2>/dev/null; do /bin/sleep 0.2; done
+            /usr/bin/open -n "$2" || exec "$2/Contents/MacOS/FileDesk"
+            """, "FileDesktop-relaunch", String(getpid()), app.path]
+        helper.currentDirectoryURL = FileManager.default.temporaryDirectory
+        helper.standardInput = FileHandle.nullDevice
+        helper.standardOutput = FileHandle.nullDevice
+        helper.standardError = FileHandle.nullDevice
+        try helper.run()
+    }
+
     @discardableResult
     private func run(_ executable: String, _ arguments: [String], in directory: URL, version: String? = nil) throws -> String {
         let process = Process()

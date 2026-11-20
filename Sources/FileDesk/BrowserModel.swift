@@ -61,7 +61,7 @@ final class BrowserModel {
         selection.contains(url) ? selectedItems.map(\.url) : [url]
     }
 
-    func selectGridItem(_ id: URL, modifiers: NSEvent.ModifierFlags) {
+    func selectItem(_ id: URL, modifiers: NSEvent.ModifierFlags) {
         if modifiers.contains(.shift), let start = items.firstIndex(where: { $0.id == selectionAnchor }),
            let end = items.firstIndex(where: { $0.id == id }) {
             let range = items[min(start, end)...max(start, end)].map(\.id)
@@ -224,9 +224,7 @@ final class BrowserModel {
                     guard try await updater.install(release, at: app, report: { self.updateStage = $0 }) else { return }
                     updateStage = .restarting
                     do {
-                        let configuration = NSWorkspace.OpenConfiguration()
-                        configuration.createsNewApplicationInstance = true
-                        _ = try await NSWorkspace.shared.openApplication(at: app, configuration: configuration)
+                        try AppUpdater.relaunchAfterExit(app)
                         // The quit delegate refuses termination while a file operation is active.
                         isWorking = false
                         NSApp.terminate(nil)

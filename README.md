@@ -15,10 +15,10 @@
 
 ### 部署
 
-运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.9：
+运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.10：
 
 ```bash
-git clone --branch 1.0.9 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.10 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -26,9 +26,9 @@ open dist
 
 在打开的访达窗口中，将 `FileDesktop.app` 拖入「应用程序」。从那里双击启动，或用聚焦搜索 `FileDesktop`。首次访问桌面、文稿、下载或外接磁盘时，macOS 可能会请求权限。
 
-**更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。从 1.0.8 开始，窗口底部会显示各阶段的进度，安装成功后自动重启。从更早版本首次升到 1.0.8 时，仍需按旧版提示退出并重新打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
+**更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。从 1.0.10 发起更新时，主窗口底部会显示各阶段的进度。安装成功后，旧进程退出，新版本自动启动。从 1.0.9 或更早版本升级到 1.0.10 时，由旧版执行更新。如果安装成功后没有自动重启，请退出文件桌，再从「应用程序」打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
 
-**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.9` 或 `v1.0.9`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
+**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.10` 或 `v1.0.10`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
 
 ### 用法
 
@@ -68,10 +68,10 @@ FileDesktop is a macOS file manager built with SwiftUI and AppKit. Browsing, sea
 
 ### Deployment
 
-FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.9, run:
+FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.10, run:
 
 ```bash
-git clone --branch 1.0.9 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.10 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -79,9 +79,9 @@ open dist
 
 Drag `FileDesktop.app` from the Finder window into Applications. Double-click it there or search for `FileDesktop` in Spotlight. macOS may ask for permission the first time you access Desktop, Documents, Downloads, or an external drive.
 
-**Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. Starting with 1.0.8, a progress bar at the bottom of the window tracks each stage and FileDesktop restarts after a successful installation. When upgrading from an earlier version to 1.0.8, follow the old updater’s prompt to quit and reopen the app. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
+**Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. When you start an update from 1.0.10, the main window shows progress along the bottom. After installation, the old process exits and the new version opens automatically. Upgrades to 1.0.10 from 1.0.9 or earlier use the older updater. If the app stays open after installation, quit it and reopen it from Applications. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
 
-**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.9` or `v1.0.9`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
+**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.10` or `v1.0.10`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
 
 ### Usage
 

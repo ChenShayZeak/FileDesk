@@ -1,10 +1,48 @@
 import AppKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import FileDesk
 
 final class FileOperationsTests: XCTestCase {
     private let fs = FileSystem()
     private let sessions = EncryptedFileSessions()
+
+    @MainActor
+    func testNativeDragExportsEachSelectedFileAsAFileURL() throws {
+        let folder = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let urls = ["普通 文件.txt", "copy.filedesk"].map { folder.appendingPathComponent($0) }
+        for url in urls { try Data(url.lastPathComponent.utf8).write(to: url) }
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let items = FileDragArea.DragView.draggingItems(for: urls, at: .zero)
+        XCTAssertTrue(pasteboard.writeObjects(items.compactMap { $0.item as? NSPasteboardWriting }))
+        let received = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+        XCTAssertEqual(received, urls)
+    }
+
+    func testFileDragProvidesOriginalURLAndReadableFileContents() async throws {
+        let folder = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("例 子.txt")
+        let contents = Data("drag payload".utf8)
+        try contents.write(to: file)
+        let provider = FileSystem.item(at: file).dragProvider
+        XCTAssertEqual(provider.suggestedName, file.lastPathComponent)
+        func read(_ type: UTType) async throws -> Data {
+            try await withCheckedThrowingContinuation { continuation in
+                _ = provider.loadDataRepresentation(forTypeIdentifier: type.identifier) { data, error in
+                    if let data { continuation.resume(returning: data) }
+                    else { continuation.resume(throwing: error ?? CocoaError(.fileReadUnknown)) }
+                }
+            }
+        }
+        let urlData = try await read(.fileURL)
+        XCTAssertEqual(URL(dataRepresentation: urlData, relativeTo: nil)?.path, file.path)
+        let text = try await read(.plainText)
+        XCTAssertEqual(text, contents)
+        XCTAssertTrue(FileSystem.item(at: folder).dragProvider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier))
+    }
 
     @MainActor
     func testGridShiftSelectionKeepsAnchorAndUsesVisibleOrder() async throws {
@@ -20,20 +58,20 @@ final class FileOperationsTests: XCTestCase {
         let deadline = ContinuousClock.now + .seconds(5)
         while model.isLoading && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(model.items.map(\.url), urls)
-        model.selectGridItem(urls[2], modifiers: [])
-        model.selectGridItem(urls[4], modifiers: .shift)
+        model.selectItem(urls[2], modifiers: [])
+        model.selectItem(urls[4], modifiers: .shift)
         XCTAssertEqual(model.selectedItems.map(\.url), Array(urls[2...4]))
         XCTAssertEqual(model.fileURLsForDrag(startingAt: urls[3]), Array(urls[2...4]))
         XCTAssertEqual(model.fileURLsForDrag(startingAt: urls[0]), [urls[0]])
-        model.selectGridItem(urls[0], modifiers: .shift)
+        model.selectItem(urls[0], modifiers: .shift)
         XCTAssertEqual(model.selectedItems.map(\.url), Array(urls[0...2]))
-        model.selectGridItem(urls[4], modifiers: .command)
-        model.selectGridItem(urls[3], modifiers: [.command, .shift])
+        model.selectItem(urls[4], modifiers: .command)
+        model.selectItem(urls[3], modifiers: [.command, .shift])
         XCTAssertEqual(model.selectedItems.map(\.url), urls)
-        model.selectGridItem(urls[1], modifiers: .command)
+        model.selectItem(urls[1], modifiers: .command)
         XCTAssertFalse(model.selection.contains(urls[1]))
         model.selection = []
-        model.selectGridItem(urls[0], modifiers: .shift)
+        model.selectItem(urls[0], modifiers: .shift)
         XCTAssertEqual(model.selection, [urls[0]])
     }
 

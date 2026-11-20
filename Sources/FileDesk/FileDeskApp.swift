@@ -4,6 +4,7 @@ import SwiftUI
 @main
 @MainActor
 struct FileDeskApp: App {
+    @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(FileDeskAppDelegate.self) private var appDelegate
     @AppStorage("browserTheme") private var theme = BrowserTheme.violet
     @AppStorage("browserCustomColor") private var customColorData = Data()
@@ -36,8 +37,11 @@ struct FileDeskApp: App {
                 }
             }
             CommandGroup(after: .help) {
-                Button("检查更新…") { Task { await model.checkForUpdate() } }
-                    .disabled(model.isWorking || model.session != nil)
+                Button("检查更新…") {
+                    openWindow(id: "file-desk")
+                    Task { await model.checkForUpdate() }
+                }
+                .disabled(model.isWorking || model.session != nil)
             }
         }
 
