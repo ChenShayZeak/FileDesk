@@ -15,6 +15,7 @@ struct BrowserView: View {
     @FocusState private var filesFocused: Bool
     @State private var prompt: BrowserPrompt?
     @State private var trashItems: [FileItem] = []
+    @State private var gridDrag = GridFileDrag()
 
     private let panelCornerRadius: CGFloat = 18
     private let panelSpacing: CGFloat = 8
@@ -291,6 +292,10 @@ struct BrowserView: View {
         }
         .buttonStyle(.plain)
         .help(path)
+        .onDrag {
+            guard let item = model.recentFile(at: path) else { return NSItemProvider() }
+            return NSItemProvider(object: item.url as NSURL)
+        }
         .contextMenu {
             Button("从最近使用中移除") { model.removeRecentFile(path) }
         }
@@ -550,7 +555,7 @@ struct BrowserView: View {
     private var fileTable: some View {
         @Bindable var model = model
 
-        return Table(model.items, selection: $model.selection) {
+        return Table(of: FileItem.self, selection: $model.selection) {
             TableColumn("名称") { (item: FileItem) in
                 Label {
                     HStack(spacing: 6) {
@@ -588,6 +593,10 @@ struct BrowserView: View {
                 Text(item.formattedSize).foregroundStyle(.secondary)
             }
             .width(min: 52, ideal: 72)
+        } rows: {
+            ForEach(model.items) { item in
+                TableRow(item).itemProvider { NSItemProvider(object: item.url as NSURL) }
+            }
         }
         .contextMenu(forSelectionType: URL.self) { selection in
             if selection.isEmpty {
@@ -647,6 +656,9 @@ struct BrowserView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .simultaneousGesture(DragGesture(minimumDistance: 5).onChanged { _ in
+                        gridDrag.begin(urls: model.fileURLsForDrag(startingAt: item.url))
+                    })
                     .simultaneousGesture(TapGesture(count: 2).onEnded {
                         let modifiers = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
                         guard modifiers.intersection([.shift, .command]).isEmpty else { return }

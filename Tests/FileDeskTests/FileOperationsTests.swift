@@ -23,6 +23,8 @@ final class FileOperationsTests: XCTestCase {
         model.selectGridItem(urls[2], modifiers: [])
         model.selectGridItem(urls[4], modifiers: .shift)
         XCTAssertEqual(model.selectedItems.map(\.url), Array(urls[2...4]))
+        XCTAssertEqual(model.fileURLsForDrag(startingAt: urls[3]), Array(urls[2...4]))
+        XCTAssertEqual(model.fileURLsForDrag(startingAt: urls[0]), [urls[0]])
         model.selectGridItem(urls[0], modifiers: .shift)
         XCTAssertEqual(model.selectedItems.map(\.url), Array(urls[0...2]))
         model.selectGridItem(urls[4], modifiers: .command)

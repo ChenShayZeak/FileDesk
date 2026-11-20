@@ -57,6 +57,10 @@ final class BrowserModel {
         }
     }
 
+    func fileURLsForDrag(startingAt url: URL) -> [URL] {
+        selection.contains(url) ? selectedItems.map(\.url) : [url]
+    }
+
     func selectGridItem(_ id: URL, modifiers: NSEvent.ModifierFlags) {
         if modifiers.contains(.shift), let start = items.firstIndex(where: { $0.id == selectionAnchor }),
            let end = items.firstIndex(where: { $0.id == id }) {

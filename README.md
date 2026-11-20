@@ -15,10 +15,10 @@
 
 ### 部署
 
-运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.8：
+运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.9：
 
 ```bash
-git clone --branch 1.0.8 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.9 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -28,7 +28,7 @@ open dist
 
 **更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。从 1.0.8 开始，窗口底部会显示各阶段的进度，安装成功后自动重启。从更早版本首次升到 1.0.8 时，仍需按旧版提示退出并重新打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
 
-**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.8` 或 `v1.0.8`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
+**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.9` 或 `v1.0.9`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
 
 ### 用法
 
@@ -38,6 +38,7 @@ open dist
 | 搜索与排序 | 按 `⌘F` 搜索当前目录及可访问的子目录。搜索沿用隐藏文件设置，跳过软件包内部和符号链接指向的目录。在「⋯」选择按名称、修改时间、大小或种类排序。按 `⌘⇧.` 切换隐藏项目，默认显示。 |
 | 隐藏与取消隐藏 | 选中一个或多个文件或文件夹，从右键菜单或底部「文件操作」菜单选择「隐藏项目」。开启「显示隐藏文件」时仍可看到带「隐藏」标记的项目。按 `⌘⇧.` 切换显示。要恢复，右键选择「取消隐藏」。以点号开头的名称（如 `.env`）自带隐藏效果，需手动改名才能去掉开头的点号。 |
 | 选择与复制 | 先点第一项，按住 Shift 点最后一项，选中整个范围。按住 ⌘ 点击可逐项添加或取消。按 `⌘C` 复制，打开目标目录按 `⌘V` 粘贴，也可粘贴到访达。用 `⌥⌘C` 复制绝对路径，每项一行。 |
+| 拖到其他 App | 从列表或网格把文件或文件夹拖入支持文件拖放的 App。多选后，从任一已选项开始拖动即可一起传递。拖出加密文件时传递的是原始 `.filedesk` 文件。 |
 | 移动与删除 | 右键选择「移到…」。目标已有同名项目时，核对来源和目标路径后选择「替换」或「跳过」，默认跳过。**替换文件夹会覆盖目标文件夹及其内容。** 用 `⌘⌫` 将所选项目移到废纸篓，`⌘⇧N` 新建文件夹。 |
 | 收藏与历史 | 点目录标题旁的星标切换收藏。右上角可展开历史面板，重访通过「前往文件夹」访问过的路径，或点 × 删除记录。「最近使用」记录已打开的文件，随改名和删除同步。切回文件桌或按 `⌘R` 可同步访达中的变化。 |
 | 预览、标签与终端 | 双击普通文件会用默认应用打开。右侧可查看属性或快速预览。右键文件夹可编辑访达标签。点右上角的终端按钮，在当前目录打开终端。 |
@@ -67,10 +68,10 @@ FileDesktop is a macOS file manager built with SwiftUI and AppKit. Browsing, sea
 
 ### Deployment
 
-FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.8, run:
+FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.9, run:
 
 ```bash
-git clone --branch 1.0.8 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.9 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -80,7 +81,7 @@ Drag `FileDesktop.app` from the Finder window into Applications. Double-click it
 
 **Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. Starting with 1.0.8, a progress bar at the bottom of the window tracks each stage and FileDesktop restarts after a successful installation. When upgrading from an earlier version to 1.0.8, follow the old updater’s prompt to quit and reopen the app. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
 
-**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.8` or `v1.0.8`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
+**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.9` or `v1.0.9`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
 
 ### Usage
 
@@ -90,6 +91,7 @@ Drag `FileDesktop.app` from the Finder window into Applications. Double-click it
 | Search and sort | Press `⌘F` to search the current folder and its accessible subfolders. Search respects hidden-item visibility and skips package contents and symlinked folders. Use **⋯** to sort by name, modification time, size, or kind. Press `⌘⇧.` to toggle hidden items, which are shown by default. |
 | Hide and unhide | Select one or more files or folders, then choose **Hide Items** from the context menu or the file actions menu at the bottom. With **Show Hidden Files** on, hidden items remain visible with a badge. Press `⌘⇧.` to toggle visibility. Right-click and choose **Unhide** to clear the hidden flag. Dotfiles such as `.env` stay hidden by name until you rename them to remove the leading dot. |
 | Select and copy | Click the first item, then Shift-click the last to select the range. Command-click toggles individual items. Press `⌘C`, open the destination, then press `⌘V`. You can also paste into Finder. Use `⌥⌘C` to copy absolute paths, one per line. |
+| Drag to another app | Drag files or folders from the list or grid into an app that accepts file drops. To drag a group, start on any selected item. Dragging an encrypted file shares the original encrypted file. |
 | Move and delete | Right-click and choose **Move To…**. If a name already exists, check the source and destination paths, then choose **Replace** or **Skip**. Skip is the default. **Replacing a folder overwrites the destination folder and its contents.** Press `⌘⌫` to move selected items to the Trash or `⌘⇧N` to create a folder. |
 | Favorites and history | Click the star beside a folder title to toggle it as a favorite. Open the history panel from the top right to revisit paths entered with Go to Folder, or click × to remove an entry. Recently opened files track renames and deletions. Switch back to FileDesktop or press `⌘R` to pick up changes from Finder. |
 | Preview, tags, and Terminal | Double-click a file to open it in the default app. Use the right panel for properties or Quick Look. Right-click a folder to edit Finder tags. The terminal button at the top right opens Terminal in the current folder. |
