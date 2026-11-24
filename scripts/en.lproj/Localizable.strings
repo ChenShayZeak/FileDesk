@@ -74,7 +74,7 @@
 "已新建文件夹" = "Created folder";
 "已是最新版本" = "You’re Up to Date";
 "已更新加密文件，临时副本已删除" = "Encrypted file updated and temporary copy removed";
-"已更新文件夹标签" = "Updated folder tags";
+"已更新标签" = "Updated tags";
 "已生成「%@」。请选择是否保留原文件「%@」。" = "Created “%1$@”. Choose whether to keep the unencrypted original, “%2$@”.";
 "已生成加密副本" = "Created encrypted copy";
 "已移到废纸篓" = "Moved to Trash";
@@ -167,7 +167,7 @@
 "移除收藏" = "Remove from Favorites";
 "移除标签 %@" = "Remove tag %@";
 "粘贴文件" = "Paste Files";
-"编辑文件夹标签" = "Edit Folder Tags";
+"编辑标签" = "Edit Tags";
 "编辑标签…" = "Edit Tags…";
 "网格视图" = "Grid View";
 "聚焦搜索" = "Focus Search";
@@ -179,7 +179,7 @@
 "解密文件" = "Decrypt File";
 "解密文件…" = "Decrypt File…";
 "设为默认文件夹浏览器…" = "Set as Default Folder Browser…";
-"试试其他文件名或标签。" = "Try another name or folder tag.";
+"试试其他文件名或标签。" = "Try another name or tag.";
 "详细信息" = "Details";
 "请从应用程序包启动文件桌，并确认目标应用存在。" = "Launch FileDesktop from its application bundle and check that the target app exists.";
 "请先关闭当前解密会话。" = "Close the current decrypted file first.";
@@ -265,3 +265,4 @@
 
 "未能还原部分项目" = "Couldn’t Restore Some Items";
 "已还原 %lld 个项目" = "Restored %lld item(s)";
+"共享…" = "Share…";

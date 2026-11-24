@@ -127,7 +127,7 @@ struct FileInspector: View {
                             info(String(localized: "大小"), item.formattedSize)
                         }
                         info(String(localized: "位置"), item.url.deletingLastPathComponent().path)
-                        if item.isFolder {
+                        if item.canEditTags {
                             info(String(localized: "标签"), item.tags.isEmpty ? String(localized: "未添加") : item.tags.joined(separator: " · "))
                         }
                     }
@@ -139,10 +139,11 @@ struct FileInspector: View {
                                 Button("快速预览") { preview(item) }
                             }
                         }
-                        if item.isFolder {
+                        if item.canEditTags {
                             Button("编辑标签…", systemImage: "tag") { editTags(item) }
                                 .disabled(isWorking)
-                        } else if item.isRegularFile {
+                        }
+                        if item.isRegularFile {
                             Button(
                                 item.isEncrypted ? String(localized: "解密文件…") : String(localized: "加密文件…"),
                                 systemImage: item.isEncrypted ? "lock.open" : "lock"

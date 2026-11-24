@@ -24,6 +24,7 @@ struct FileItem: Identifiable, Sendable {
         item.hasEncryptedHeader = FileCipher.hasHeader(at: url)
         return item
     }
+    var canEditTags: Bool { isFolder || isRegularFile }
     var isArchive: Bool { isRegularFile && !isEncrypted && ArchiveExtractor.extensions.contains(fileExtension) }
 
     func matches(_ term: String) -> Bool {
@@ -83,7 +84,7 @@ enum FileOperation: Sendable {
     case move(sources: [URL], destination: URL)
     case trash(sources: [URL])
     case setHidden(sources: [URL], hidden: Bool)
-    case setTags(folder: URL, tags: [String])
+    case setTags(item: URL, tags: [String])
     case encrypt(source: URL, password: String)
     case compress(sources: [URL], in: URL, format: ArchiveFormat)
     case extract(URL, installIfMissing: Bool = false)
@@ -98,7 +99,7 @@ enum FileOperation: Sendable {
         case .move: String(localized: "已移动文件")
         case .trash, .trashEncryptedOriginal: String(localized: "已移到废纸篓")
         case .setHidden(_, let hidden): hidden ? String(localized: "已隐藏项目") : String(localized: "已取消隐藏")
-        case .setTags: String(localized: "已更新文件夹标签")
+        case .setTags: String(localized: "已更新标签")
         case .encrypt: String(localized: "已生成加密副本")
         case .compress: String(localized: "已创建压缩包")
         case .extract: String(localized: "已解压到")
@@ -195,7 +196,7 @@ actor FileSystem {
     func read(_ directory: URL, showHidden: Bool, sort: FileSort) throws -> [FileItem] {
         let urls = try manager.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: Array(Self.keys),
+            includingPropertiesForKeys: Array(Self.keys.union([.tagNamesKey])),
             options: showHidden ? [] : [.skipsHiddenFiles]
         )
 
@@ -214,7 +215,7 @@ actor FileSystem {
         if !showHidden { options.insert(.skipsHiddenFiles) }
         var rootError: Error?
         let entries = FileManager.default.enumerator(
-            at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isPackageKey, .isSymbolicLinkKey],
+            at: directory, includingPropertiesForKeys: [.tagNamesKey],
             options: options
         ) { url, error in
             if url.standardizedFileURL.path == directory.standardizedFileURL.path { rootError = error }
@@ -227,11 +228,8 @@ actor FileSystem {
         var nextUpdate = ContinuousClock.now
         while let url = entries.nextObject() as? URL {
             try Task.checkCancellation()
-            // Only folders carry searchable tags. Avoid loading full metadata for unrelated entries.
             if !url.lastPathComponent.localizedStandardContains(term) {
-                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .isSymbolicLinkKey])
-                guard values?.isDirectory == true, values?.isPackage != true, values?.isSymbolicLink != true,
-                      let tags = try? url.resourceValues(forKeys: [.tagNamesKey]).tagNames,
+                guard let tags = try? url.resourceValues(forKeys: [.tagNamesKey]).tagNames,
                       tags.contains(where: { $0.localizedStandardContains(term) }) else { continue }
             }
             matches.append(Self.item(at: url))
@@ -249,7 +247,7 @@ actor FileSystem {
     static func item(at url: URL) -> FileItem {
         let values = try? url.resourceValues(forKeys: keys)
         let isFolder = values?.isDirectory == true && values?.isPackage != true
-        let tags = isFolder ? (try? url.resourceValues(forKeys: [.tagNamesKey]).tagNames) : nil
+        let tags = try? url.resourceValues(forKeys: [.tagNamesKey]).tagNames
         return FileItem(
             url: url.standardizedFileURL,
             name: url.lastPathComponent,
@@ -370,12 +368,11 @@ actor FileSystem {
                     try source.setResourceValues(values)
                 }
             }
-        case .setTags(let folder, let tags):
-            attempt(folder.lastPathComponent) {
-                let currentFolder = URL(fileURLWithPath: folder.path, isDirectory: true)
-                let values = try currentFolder.resourceValues(forKeys: [.isDirectoryKey])
-                guard values.isDirectory == true else { throw CocoaError(.fileReadUnknown) }
-                try (currentFolder as NSURL).setResourceValue(tags, forKey: .tagNamesKey)
+        case .setTags(let item, let tags):
+            attempt(item.lastPathComponent) {
+                let current = URL(fileURLWithPath: item.path)
+                guard Self.item(at: current).canEditTags else { throw CocoaError(.fileReadUnknown) }
+                try (current as NSURL).setResourceValue(tags, forKey: .tagNamesKey)
             }
         case .compress(let sources, let directory, let format):
             guard let first = sources.first else { break }

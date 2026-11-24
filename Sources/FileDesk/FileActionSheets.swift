@@ -12,13 +12,12 @@ struct TagSheet: View {
     init(item: FileItem, save: @escaping ([String]) -> Void) {
         self.item = item
         self.save = save
-        // Each sheet starts with the selected folder's current tags.
         _tags = State(initialValue: item.tags)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("编辑文件夹标签").font(.headline)
+            Text("编辑标签").font(.headline)
             Text(item.name).foregroundStyle(.secondary).lineLimit(1)
 
             if !tags.isEmpty {

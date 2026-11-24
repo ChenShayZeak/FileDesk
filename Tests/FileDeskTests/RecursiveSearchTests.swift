@@ -15,7 +15,7 @@ final class RecursiveSearchTests: XCTestCase {
         }
         try manager.createSymbolicLink(at: directory.appendingPathComponent("A/back"), withDestinationURL: directory)
         let taggedFolder = directory.appendingPathComponent("B/Deep", isDirectory: true)
-        let tagged = await FileSystem().perform(.setTags(folder: taggedFolder, tags: ["归档"]))
+        let tagged = await FileSystem().perform(.setTags(item: taggedFolder, tags: ["归档"]))
         XCTAssertEqual(tagged.completed, 1)
 
         let suite = UUID().uuidString

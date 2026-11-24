@@ -639,6 +639,29 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertEqual(Set(children), Set([source.lastPathComponent, encrypted.lastPathComponent]))
     }
 
+    func testRegularFileFinderTagsAppearInListingsAndRecursiveSearch() async throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let nested = root.appendingPathComponent("Nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        let file = nested.appendingPathComponent("notes.txt")
+        let data = Data("test contents".utf8)
+        try data.write(to: file)
+        let updated = await fs.perform(.setTags(item: file, tags: ["待办"]))
+        XCTAssertEqual(updated.completed, 1, "\(updated.failures)")
+        let fresh = URL(fileURLWithPath: file.path)
+        XCTAssertEqual(try fresh.resourceValues(forKeys: [.tagNamesKey]).tagNames, ["待办"])
+        let listing = try await fs.read(nested, showHidden: false, sort: .name)
+        XCTAssertEqual(listing.first?.tags, ["待办"])
+        let hits = try await FileSystem.search(root, term: "待办", showHidden: false, sort: .name) { _ in }
+        XCTAssertEqual(hits.map(\.url), [file.standardizedFileURL])
+        let cleared = await fs.perform(.setTags(item: file, tags: []))
+        XCTAssertEqual(cleared.completed, 1, "\(cleared.failures)")
+        let refreshed = try await fs.read(nested, showHidden: false, sort: .name)
+        XCTAssertEqual(refreshed.first?.tags, [])
+        XCTAssertEqual(try Data(contentsOf: file), data)
+    }
+
     func testFolderTagsPersistAndCanBeRemoved() async throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -646,12 +669,12 @@ final class FileOperationsTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
         let tags = ["资料", "进行中"]
 
-        let tagged = await fs.perform(.setTags(folder: folder, tags: tags))
+        let tagged = await fs.perform(.setTags(item: folder, tags: tags))
         XCTAssertEqual(tagged.completed, 1, "\(tagged.failures)")
         let items = try await FileSystem().read(directory, showHidden: false, sort: .name)
         XCTAssertEqual(Set(items.first?.tags ?? []), Set(tags))
 
-        let cleared = await fs.perform(.setTags(folder: folder, tags: []))
+        let cleared = await fs.perform(.setTags(item: folder, tags: []))
         XCTAssertEqual(cleared.completed, 1, "\(cleared.failures)")
         let refreshed = try await fs.read(directory, showHidden: false, sort: .name)
         XCTAssertEqual(refreshed.first?.tags, [])

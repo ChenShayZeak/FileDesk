@@ -69,7 +69,7 @@ struct BrowserView: View {
             case .name(let namePrompt):
                 NameSheet(prompt: namePrompt) { model.perform(namePrompt.operation($0)) }
             case .tags(let item):
-                TagSheet(item: item) { model.perform(.setTags(folder: item.url, tags: $0)) }
+                TagSheet(item: item) { model.perform(.setTags(item: item.url, tags: $0)) }
             case .changePassword(let item):
                 ChangePasswordSheet(item: item, isWorking: model.isWorking, error: model.sessionError) { old, new in
                     await model.changePassword(for: item, old: old, new: new)
@@ -394,6 +394,13 @@ struct BrowserView: View {
             .frame(minWidth: 0, maxWidth: .infinity)
             .frame(height: 32)
             .background(BrowserColors.control, in: RoundedRectangle(cornerRadius: 8))
+
+            shareFiles(model.selectedItems)
+                .labelStyle(.iconOnly)
+                .font(.system(size: 13, weight: .medium))
+                .buttonStyle(.borderless)
+                .frame(width: 29, height: 28)
+                .help("共享…")
 
             ToolButton(title: String(localized: "复制路径"), symbol: "link") {
                 model.copyPaths(model.selectedItems.map(\.url))
@@ -757,6 +764,13 @@ struct BrowserView: View {
             .fixedSize()
     }
 
+    private func shareFiles(_ items: [FileItem]) -> some View {
+        ShareLink(items: items.map(\.url)) {
+            Label("共享…", systemImage: "square.and.arrow.up")
+        }
+        .disabled(items.isEmpty)
+    }
+
     private func compressionMenu(_ items: [FileItem]) -> some View {
         Menu("压缩为") {
             ForEach(ArchiveFormat.allCases, id: \.self) { format in
@@ -798,6 +812,7 @@ struct BrowserView: View {
             itemTools(item)
             Divider()
         }
+        shareFiles(items)
         Button("复制文件") { model.copy(items) }
         Button("复制路径") { model.copyPaths(items.map(\.url)) }
         Button("移到…") { model.chooseDirectory(for: items) }
@@ -894,6 +909,7 @@ struct BrowserView: View {
                     }
                     itemTools(item)
                 }
+                shareFiles(model.selectedItems)
                 Button("复制文件") { model.copy(model.selectedItems) }
                     .disabled(model.selection.isEmpty)
                 Button("复制路径") { model.copyPaths(model.selectedItems.map(\.url)) }
@@ -939,10 +955,11 @@ struct BrowserView: View {
 
     @ViewBuilder
     private func itemTools(_ item: FileItem) -> some View {
-        if item.isFolder {
+        if item.canEditTags {
             Button("编辑标签…") { editTags(item) }
                 .disabled(model.isWorking)
-        } else if item.isRegularFile {
+        }
+        if item.isRegularFile {
             Button(item.isEncrypted ? String(localized: "解密文件…") : String(localized: "加密文件…")) { crypt(item) }
                 .disabled(model.isWorking)
             if item.isEncrypted {
