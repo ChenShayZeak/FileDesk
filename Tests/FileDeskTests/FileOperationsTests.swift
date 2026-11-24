@@ -64,6 +64,37 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertEqual(received, urls)
     }
 
+    @MainActor
+    func testDroppedFileURLsMoveTheDraggedBatchIndependentlyOfSelection() async throws {
+        let root = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let destination = root.appendingPathComponent("Favorite", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        let sources = ["first file.txt", "second.txt"].map { root.appendingPathComponent($0) }
+        for source in sources { try Data(source.lastPathComponent.utf8).write(to: source) }
+        let model = BrowserModel()
+        model.navigate(to: root)
+        let providers = sources.map { FileSystem.item(at: $0).dragProvider }
+        XCTAssertFalse(model.moveDroppedFiles([], to: destination))
+        XCTAssertTrue(model.moveDroppedFiles([providers[0], NSItemProvider(object: "text" as NSString)], to: destination))
+        let failureDeadline = ContinuousClock.now + .seconds(5)
+        while model.notice == nil && ContinuousClock.now < failureDeadline { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotNil(model.notice)
+        XCTAssertTrue(sources.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
+
+        model.notice = nil
+        XCTAssertTrue(model.moveDroppedFiles(providers, to: destination))
+        let deadline = ContinuousClock.now + .seconds(5)
+        while FileManager.default.fileExists(atPath: sources.last!.path) && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        for source in sources {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+            XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent(source.lastPathComponent)),
+                           Data(source.lastPathComponent.utf8))
+        }
+    }
+
     func testFileDragProvidesOriginalURLAndReadableFileContents() async throws {
         let folder = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -343,7 +374,7 @@ final class FileOperationsTests: XCTestCase {
     }
 
     @MainActor
-    func testGoToFolderResolvesPathsAndRejectsFilesWithoutChangingHistory() throws {
+    func testGoToFolderResolvesFilesAndDirectoriesAndRejectsMissingPaths() async throws {
         let parent = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: parent) }
         let child = parent.appendingPathComponent("子 目录", isDirectory: true)
@@ -356,10 +387,26 @@ final class FileOperationsTests: XCTestCase {
         XCTAssertTrue(model.goToFolder(parent.path))
         XCTAssertTrue(model.goToFolder("子 目录"))
         XCTAssertEqual(model.directory, child.standardizedFileURL)
-        for input in ["", "不存在", "文件"] {
+        for input in ["", "不存在", "不存在/文件"] {
             XCTAssertFalse(model.goToFolder(input))
             XCTAssertEqual(model.directory, child.standardizedFileURL)
         }
+        model.query = "no match"
+        XCTAssertTrue(model.goToFolder("文件"))
+        let deadline = ContinuousClock.now + .seconds(5)
+        while model.isLoading && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.query, "")
+        XCTAssertEqual(model.selectedItems.map(\.name), ["文件"])
+        XCTAssertEqual(model.directory, child.standardizedFileURL)
+        let hidden = child.appendingPathComponent(".隐藏 文件")
+        try Data().write(to: hidden)
+        model.showHidden = false
+        model.navigate(to: parent)
+        XCTAssertTrue(model.goToFolder(hidden.absoluteString))
+        let hiddenDeadline = ContinuousClock.now + .seconds(5)
+        while model.isLoading && ContinuousClock.now < hiddenDeadline { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.selectedItems.map(\.name), [hidden.lastPathComponent])
+        XCTAssertFalse(model.showHidden)
         let childPath = child.standardizedFileURL.path
         let parentPath = parent.standardizedFileURL.path
         XCTAssertEqual(model.recentPaths, [childPath, parentPath])

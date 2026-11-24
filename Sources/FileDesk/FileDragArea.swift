@@ -74,7 +74,32 @@ struct FileDragArea: NSViewRepresentable {
         }
 
         func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-            [.copy, .link, .generic]
+            context == .withinApplication ? [.move, .copy, .link, .generic] : [.copy, .link, .generic]
         }
+    }
+}
+
+@MainActor
+struct FolderMoveDrop: DropDelegate {
+    let folder: URL
+    let model: BrowserModel
+    @Binding var target: URL?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        !model.isWorking && info.hasItemsConforming(to: [.fileURL])
+    }
+
+    func dropEntered(info: DropInfo) { target = folder }
+    func dropExited(info: DropInfo) {
+        if target == folder { target = nil }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: model.isWorking ? .forbidden : .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        target = nil
+        return model.moveDroppedFiles(info.itemProviders(for: [.fileURL]), to: folder)
     }
 }

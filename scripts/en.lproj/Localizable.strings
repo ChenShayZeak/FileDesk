@@ -93,7 +93,7 @@
 "打开" = "Open";
 "执行 %@ 失败。" = "Could not run %@.";
 "找不到正在运行的文件桌应用包。请退出文件桌，从「应用程序」重新打开后再检查更新。" = "FileDesktop could not find its application bundle. Quit and reopen it from Applications, then check again.";
-"找不到这个文件夹，请检查路径和访问权限。" = "Folder not found. Check the path and your access permissions.";
+"找不到这个文件或文件夹，请检查路径和访问权限。" = "File or folder not found. Check the path and your access permissions.";
 "按名称或标签搜索当前文件夹及子文件夹" = "Search this folder and its subfolders by name or tag";
 "排序与更多操作" = "Sort and More Actions";
 "排序方式" = "Sort By";
@@ -266,3 +266,4 @@
 "未能还原部分项目" = "Couldn’t Restore Some Items";
 "已还原 %lld 个项目" = "Restored %lld item(s)";
 "共享…" = "Share…";
+"未能移动拖入的项目，请重试。" = "Couldn’t move the dropped items. Try again.";

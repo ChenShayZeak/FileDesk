@@ -15,6 +15,8 @@ struct BrowserView: View {
     @FocusState private var searchFocused: Bool
     @FocusState private var filesFocused: Bool
     @State private var prompt: BrowserPrompt?
+    @State private var hoveredRecentPath: String?
+    @State private var dropFolder: URL?
     @State private var pendingRename: URL?
     @State private var trashItems: [FileItem] = []
 
@@ -282,39 +284,58 @@ struct BrowserView: View {
 
     private func recentFileButton(_ path: String) -> some View {
         let url = URL(fileURLWithPath: path, isDirectory: false)
-        return Button {
-            if let item = model.recentFile(at: path) { open(item) }
-        } label: {
-            HStack(spacing: 9) {
-                Image(systemName: "doc")
-                    .frame(width: 18)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(url.lastPathComponent)
-                    Text(url.deletingLastPathComponent().path)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+        return HStack(spacing: 2) {
+            Button {
+                if let item = model.recentFile(at: path) { open(item) }
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "doc")
+                        .frame(width: 18)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(url.lastPathComponent)
+                        Text(url.deletingLastPathComponent().path)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 }
-                .lineLimit(1)
-                .truncationMode(.middle)
+                .padding(.horizontal, 9)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 9)
-            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .help(path)
+            .onDrag {
+                guard let item = model.recentFile(at: path) else { return NSItemProvider() }
+                return item.dragProvider
+            }
+            if hoveredRecentPath == path {
+                Button {
+                    model.removeRecentFile(path)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("从最近使用中移除")
+                .accessibilityLabel("从最近使用中移除")
+            }
         }
-        .buttonStyle(.plain)
-        .help(path)
-        .onDrag {
-            guard let item = model.recentFile(at: path) else { return NSItemProvider() }
-            return item.dragProvider
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside { hoveredRecentPath = path }
+            else if hoveredRecentPath == path { hoveredRecentPath = nil }
         }
-        .contextMenu {
-            Button("从最近使用中移除") { model.removeRecentFile(path) }
-        }
+        .accessibilityAction(named: Text("从最近使用中移除")) { model.removeRecentFile(path) }
     }
 
     private func favoriteButton(_ favorite: Favorite) -> some View {
         let active = favorite.url.path == model.directory.path
+        let targeted = dropFolder == favorite.url
         return Button {
             model.navigate(to: favorite.url)
         } label: {
@@ -331,10 +352,14 @@ struct BrowserView: View {
             .padding(.horizontal, 9)
             .frame(height: 33)
             .foregroundStyle(active ? accent : Color.primary)
-            .background(active ? accent.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .background(active || targeted ? accent.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .overlay {
+                if targeted { RoundedRectangle(cornerRadius: 7).strokeBorder(accent, lineWidth: 2) }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onDrop(of: [.fileURL], delegate: FolderMoveDrop(folder: favorite.url, model: model, target: $dropFolder))
         .help(favorite.url.path)
         .accessibilityAddTraits(active ? .isSelected : [])
     }
@@ -531,14 +556,27 @@ struct BrowserView: View {
                 }
                 .contentShape(Rectangle())
                 .contextMenu { directoryActions }
-            } else if gridLayout {
-                fileGrid(width: gridWidth)
-                    .frame(width: gridWidth)
-                    .animation(nil, value: gridWidth)
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                    .clipped()
             } else {
-                fileTable
+                ScrollViewReader { proxy in
+                    Group {
+                        if gridLayout {
+                            fileGrid(width: gridWidth, proxy: proxy)
+                                .frame(width: gridWidth)
+                                .animation(nil, value: gridWidth)
+                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                                .clipped()
+                        } else {
+                            fileTable
+                        }
+                    }
+                    .onChange(of: model.fileToScrollTo, initial: true) { _, file in
+                        if let file {
+                            proxy.scrollTo(file, anchor: .center)
+                            model.fileToScrollTo = nil
+                            filesFocused = true
+                        }
+                    }
+                }
             }
         }
     }
@@ -651,7 +689,7 @@ struct BrowserView: View {
         .accessibilityHidden(true)
     }
 
-    private func fileGrid(width: CGFloat) -> some View {
+    private func fileGrid(width: CGFloat, proxy: ScrollViewProxy) -> some View {
         let spacing: CGFloat = 10
         let padding: CGFloat = 20
         let columns = max(1, Int((width - 2 * padding + spacing) / (108 + spacing)))
@@ -707,20 +745,18 @@ struct BrowserView: View {
         .contentShape(Rectangle())
         .contextMenu { directoryActions }
 
-        return ScrollViewReader { proxy in
-            grid
-                .focusable()
-                .focusEffectDisabled()
-                .focused($filesFocused)
-                .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { key in
-                    guard key.modifiers.intersection([.shift, .command, .control, .option]) == .shift,
-                          !model.selection.isEmpty else { return .ignored }
-                    if let target = model.extendGridSelection(rows: key.key == .upArrow ? -1 : 1, columns: columns) {
-                        proxy.scrollTo(target)
-                    }
-                    return .handled
+        return grid
+            .focusable()
+            .focusEffectDisabled()
+            .focused($filesFocused)
+            .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { key in
+                guard key.modifiers.intersection([.shift, .command, .control, .option]) == .shift,
+                      !model.selection.isEmpty else { return .ignored }
+                if let target = model.extendGridSelection(rows: key.key == .upArrow ? -1 : 1, columns: columns) {
+                    proxy.scrollTo(target)
                 }
-        }
+                return .handled
+            }
     }
 
     private var newFileMenu: some View {

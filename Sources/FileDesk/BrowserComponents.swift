@@ -347,7 +347,7 @@ struct GoToFolderSheet: View {
         if model.goToFolder(input.text) {
             dismiss()
         } else {
-            error = String(localized: "找不到这个文件夹，请检查路径和访问权限。")
+            error = String(localized: "找不到这个文件或文件夹，请检查路径和访问权限。")
         }
     }
 }

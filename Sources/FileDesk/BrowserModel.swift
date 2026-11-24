@@ -48,6 +48,7 @@ final class BrowserModel {
     private(set) var workingMessage = String(localized: "正在处理文件…")
     private(set) var readError: String?
     private(set) var status: String?
+    var fileToScrollTo: URL?
     var copiedPathsID: UUID?
     private var selectionAnchor: URL?
     var selection: Set<URL> = [] {
@@ -182,11 +183,26 @@ final class BrowserModel {
 
     func goToFolder(_ path: String) -> Bool {
         guard !path.isEmpty else { return false }
-        let url = FileSystem.folderURL(path, relativeTo: directory)
+        let url: URL
+        if path.hasPrefix("file://") {
+            guard let local = URL(string: path), ["", "localhost"].contains(local.host ?? "") else { return false }
+            url = local
+        } else {
+            url = FileSystem.folderURL(path, relativeTo: directory)
+        }
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else { return false }
-        navigate(to: url)
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return false }
+        let target = URL(fileURLWithPath: url.path, isDirectory: isDirectory.boolValue).standardizedFileURL
+        let values = try? target.resourceValues(forKeys: [.isPackageKey, .nameKey])
+        if isDirectory.boolValue && values?.isPackage != true {
+            navigate(to: target)
+        } else {
+            let parent = target.deletingLastPathComponent()
+            let file = parent.appendingPathComponent(values?.name ?? target.lastPathComponent, isDirectory: isDirectory.boolValue)
+            navigate(to: parent)
+            if !query.isEmpty { query = "" }
+            refresh(animateVisibility: false, selecting: file)
+        }
         let visited = directory.path
         if recentPaths.first != visited {
             recentPaths = [visited] + recentPaths.filter { $0 != visited }
@@ -325,7 +341,8 @@ final class BrowserModel {
 
     func refresh() { refresh(animateVisibility: false) }
 
-    private func refresh(animateVisibility: Bool) {
+    private func refresh(animateVisibility: Bool, selecting file: URL? = nil) {
+        fileToScrollTo = nil
         load?.cancel()
         isLoading = true
         readError = nil
@@ -337,7 +354,12 @@ final class BrowserModel {
             do {
                 let snapshot: [FileItem]
                 if term.isEmpty {
-                    snapshot = try await fileSystem.read(directory, showHidden: showHidden, sort: sort)
+                    if let file, !showHidden {
+                        let contents = try await fileSystem.read(directory, showHidden: true, sort: sort)
+                        snapshot = contents.filter { !$0.isHidden || $0.url == file }
+                    } else {
+                        snapshot = try await fileSystem.read(directory, showHidden: showHidden, sort: sort)
+                    }
                     guard !Task.isCancelled else { return }
                     self?.allItems = snapshot
                 } else {
@@ -352,6 +374,10 @@ final class BrowserModel {
                 let animate = animateVisibility && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
                 withAnimation(animate ? .easeInOut(duration: 0.24) : nil) {
                     self.replaceItems(snapshot)
+                }
+                if let file, let item = snapshot.first(where: { $0.url == file }) {
+                    selectItem(item.id, modifiers: [])
+                    fileToScrollTo = item.id
                 }
                 isLoading = false
             } catch {
@@ -474,6 +500,33 @@ final class BrowserModel {
         } else {
             notice = FileNotice(title: String(localized: "无法复制路径"), message: String(localized: "请再试一次。"))
         }
+    }
+
+    func moveDroppedFiles(_ providers: [NSItemProvider], to folder: URL) -> Bool {
+        guard !isWorking, !providers.isEmpty else { return false }
+        let pending = DispatchGroup()
+        var files = Array<URL?>(repeating: nil, count: providers.count)
+        // Start all reads while the drop session still grants access to its providers.
+        for (index, provider) in providers.enumerated() {
+            pending.enter()
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+                let url = data.flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                DispatchQueue.main.async {
+                    if let url, url.isFileURL { files[index] = url }
+                    pending.leave()
+                }
+            }
+        }
+        pending.notify(queue: .main) {
+            let sources = files.compactMap { $0 }
+            guard sources.count == providers.count, !self.isWorking else {
+                self.notice = FileNotice(title: String(localized: "文件操作失败"),
+                                         message: String(localized: "未能移动拖入的项目，请重试。"))
+                return
+            }
+            self.perform(.move(sources: sources, destination: folder))
+        }
+        return true
     }
 
     func paste() {
