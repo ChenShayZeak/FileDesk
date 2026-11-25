@@ -15,6 +15,7 @@ struct FileDeskApp: App {
         @Bindable var model = model
         Window("文件桌", id: "file-desk") {
             BrowserView(model: model)
+                .background { MainWindowCloseButton() }
                 .environment(\.browserAccent, theme.color(customData: customColorData))
                 .tint(theme.color(customData: customColorData))
                 .frame(minWidth: 820, minHeight: 540)
@@ -53,6 +54,39 @@ struct FileDeskApp: App {
         Settings {
             AppSettings(theme: $theme, customColorData: $customColorData, appearance: $appearance)
                 .tint(theme.color(customData: customColorData))
+        }
+    }
+}
+
+private struct MainWindowCloseButton: NSViewRepresentable {
+    func makeNSView(context: Context) -> WindowAttachment { WindowAttachment() }
+    func updateNSView(_ view: WindowAttachment, context: Context) {}
+
+    final class WindowAttachment: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let button = window?.standardWindowButton(.closeButton) else { return }
+            button.target = self
+            button.action = #selector(minimizeBrowser)
+        }
+
+        @objc private func minimizeBrowser() {
+            guard let window else { return }
+            if window.styleMask.contains(.fullScreen) {
+                // AppKit can minimize the window once it has left its full-screen Space.
+                NotificationCenter.default.removeObserver(self, name: NSWindow.didExitFullScreenNotification, object: window)
+                NotificationCenter.default.addObserver(self, selector: #selector(didExitFullScreen(_:)),
+                                                       name: NSWindow.didExitFullScreenNotification, object: window)
+                window.toggleFullScreen(nil)
+            } else {
+                window.miniaturize(nil)
+            }
+        }
+
+        @objc private func didExitFullScreen(_ notification: Notification) {
+            guard let window = notification.object as? NSWindow else { return }
+            NotificationCenter.default.removeObserver(self, name: notification.name, object: window)
+            window.miniaturize(nil)
         }
     }
 }

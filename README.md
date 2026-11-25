@@ -15,10 +15,10 @@
 
 ### 部署
 
-运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.16：
+运行需要 **macOS 14 或更高版本**。从源码构建需要 Git 和 **Swift 5.9 或更高版本**。如果还没有安装开发工具，请先运行 `xcode-select --install`。构建 1.0.17：
 
 ```bash
-git clone --branch 1.0.16 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.17 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -28,7 +28,7 @@ open dist
 
 **更新已安装的客户端**。选择「帮助 → 检查更新…」。文件桌按版本号查找 GitHub 上最新的正式标签，经你确认后下载对应源码、编译、校验并替换本机应用。从 1.0.10 发起更新时，主窗口底部会显示各阶段的进度。安装成功后，旧进程退出，新版本自动启动。从 1.0.9 或更早版本升级到 1.0.10 时，由旧版执行更新。如果安装成功后没有自动重启，请退出文件桌，再从「应用程序」打开。更新需要网络、Git、Swift 开发工具和应用所在目录的写入权限。
 
-**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.16` 或 `v1.0.16`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
+**开发与发布**。在仓库根目录运行 `swift test`。打包脚本会把当前提交上的正式标签（如 `1.0.17` 或 `v1.0.17`）写入应用版本。更新器会跳过预发布标签。[源码](Sources/FileDesk) · [测试](Tests/FileDeskTests) · [打包脚本](scripts/build-app.sh)
 
 ### 用法
 
@@ -38,12 +38,13 @@ open dist
 | 搜索与排序 | 顶部搜索栏会随窗口宽度伸缩。按 `⌘F` 搜索当前目录及可访问的子目录。搜索沿用隐藏文件设置，跳过软件包内部和符号链接指向的目录。在「⋯」选择按名称、修改时间、大小或种类排序。按 `⌘⇧.` 切换隐藏项目，默认显示。切换时只有受影响的项目做过渡，仍可见的文件保留选中状态。 |
 | 隐藏与取消隐藏 | 选中一个或多个文件或文件夹，从右键菜单或底部「文件操作」菜单选择「隐藏项目」。开启「显示隐藏文件」时仍可看到带「隐藏」标记的项目。按 `⌘⇧.` 切换显示。要恢复，右键选择「取消隐藏」。以点号开头的名称（如 `.env`）自带隐藏效果，需手动改名才能去掉开头的点号。 |
 | 新建文件 | 在文件区右键，选择「新建文件」和格式，输入名称并保存。支持 TXT、Markdown、RTF、CSV、JSON 和 HTML，自动补全扩展名，文件保存在当前浏览的目录。 |
-| 选择与复制 | 先点第一项，按住 Shift 点最后一项，选中整个范围。也可以按住 Shift，用 ↑ / ↓ 逐行扩大或缩小选区。按住 ⌘ 点击可逐项添加或取消。按 `⌘C` 复制，打开目标目录按 `⌘V` 粘贴，也可粘贴到访达。用 `⌥⌘C` 复制绝对路径，每项一行。 |
+| 选择与复制 | 在网格空白处按住鼠标拖动即可框选。点击窗口空白处清除选择。先点第一项，按住 Shift 点最后一项，选中整个范围。也可以按住 Shift，用 ↑ / ↓ 逐行扩大或缩小选区。按住 ⌘ 点击可逐项添加或取消。按 `⌘C` 复制，打开目标目录按 `⌘V` 粘贴，也可粘贴到访达。用 `⌥⌘C` 复制绝对路径，每项一行。 |
 | 共享到其他 App | 选中一个或多个文件或文件夹，点击顶部共享按钮，或在右键菜单、底部「文件操作」中选择「共享…」。macOS 会列出支持当前所选项目的共享服务。共享 .filedesk 文件时传递的是加密副本。 |
 | 拖到其他 App | 从列表或网格把文件或文件夹拖入支持文件拖放的 App。多选后，从任一已选项开始拖动即可一起传递。拖出加密文件时传递的是原始 `.filedesk` 文件。 |
-| 移动与删除 | 可把文件或文件夹拖到左侧「常用位置」或「我的收藏」中的目标文件夹，也可右键选择「移到…」。目标已有同名项目时，核对来源和目标路径后选择「替换」或「跳过」，默认跳过。**替换文件夹会覆盖目标文件夹及其内容。** 单独选中项目后，再单击可重命名，快速双击可打开。按 `⌘⌫` 后，按回车确认移到废纸篓，Esc 取消。确认后按 `⌘Z` 可还原刚删除的一批项目。原位置已有同名项目时，原件保留在废纸篓。`⌘⇧N` 新建文件夹。 |
+| 移动与删除 | 选中一个或多个项目，拖到列表、网格或左侧栏中的目标文件夹即可移动，也可右键选择「移到…」。目标已有同名项目时，核对来源和目标路径后选择「替换」或「跳过」，默认跳过。**替换文件夹会覆盖目标文件夹及其内容。** 单独选中项目后，再单击可重命名，快速双击可打开。按 `⌘⌫` 后，按回车确认移到废纸篓，Esc 取消。确认后按 `⌘Z` 可还原刚删除的一批项目。原位置已有同名项目时，原件保留在废纸篓。`⌘⇧N` 新建文件夹。 |
 | 收藏与历史 | 点目录标题旁的星标切换收藏。右上角可展开历史面板，重访通过「前往文件夹」访问过的路径，或点 × 删除记录。将鼠标移到「最近使用」的记录上，点右侧 × 即可移除记录并保留原文件。「最近使用」记录已打开的文件，随改名和删除同步。切回文件桌或按 `⌘R` 可同步访达中的变化。 |
 | 预览、标签与终端 | 双击普通文件会用默认应用打开。右侧可查看属性或快速预览。右键文件或文件夹选择「编辑标签…」，即可添加或移除访达标签。点右上角的终端按钮，在当前目录打开终端。 |
+| 最小化与退出 | 点主窗口的红色关闭按钮可最小化到 Dock。点击 Dock 中的文件桌可恢复原目录和选中项。按 `⌘Q` 退出。 |
 | 从访达打开 | 右键点击文件夹，选择「用文件桌打开」，也可在「服务」子菜单中找到它。在终端运行 `open -b local.filedesk.app .` 可打开当前目录。 |
 | 默认打开方式 | 「文件桌 → 设为默认文件夹浏览器…」会向 macOS 请求文件夹关联。系统可能保护普通文件夹类型并拒绝请求，此时仍可通过访达右键菜单打开。工具栏的「⋯ → 默认打开方式」可关联 `.filedesk` 文件或请求恢复访达。 |
 | 语言与外观 | 按 `⌘,` 打开设置。语言可选跟随系统、简体中文或 English，重启应用后生效。外观可选跟随系统、白天或夜间模式。点击自定义颜色色块可打开系统色盘，主题色立即生效。使用 Xcode 26 或更新工具链构建时，macOS 26 及以上支持液态玻璃效果。 |
@@ -72,10 +73,10 @@ FileDesktop is a macOS file manager built with SwiftUI and AppKit. Browsing, sea
 
 ### Deployment
 
-FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.16, run:
+FileDesktop runs on **macOS 14 or later**. Building from source requires Git and **Swift 5.9 or later**. If the developer tools are missing, run `xcode-select --install` first. To build version 1.0.17, run:
 
 ```bash
-git clone --branch 1.0.16 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
+git clone --branch 1.0.17 --depth 1 https://github.com/ChenShayZeak/FileDesk.git
 cd FileDesk
 bash scripts/build-app.sh
 open dist
@@ -85,7 +86,7 @@ Drag `FileDesktop.app` from the Finder window into Applications. Double-click it
 
 **Update an installed copy.** Choose **Help → Check for Updates…**. FileDesktop finds the latest stable GitHub tag by version number. Once you confirm, it fetches that source, builds and verifies the app, and replaces the installed copy. When you start an update from 1.0.10, the main window shows progress along the bottom. After installation, the old process exits and the new version opens automatically. Upgrades to 1.0.10 from 1.0.9 or earlier use the older updater. If the app stays open after installation, quit it and reopen it from Applications. Updates require a network connection, Git, Swift developer tools, and write access to the installation directory.
 
-**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.16` or `v1.0.16`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
+**Development and releases.** Run `swift test` at the repository root. The build script sets the app version from a stable tag on the current commit, such as `1.0.17` or `v1.0.17`. The updater skips prerelease tags. [Source](Sources/FileDesk) · [Tests](Tests/FileDeskTests) · [Build script](scripts/build-app.sh)
 
 ### Usage
 
@@ -95,12 +96,13 @@ Drag `FileDesktop.app` from the Finder window into Applications. Double-click it
 | Search and sort | The toolbar search field expands with the window. Press `⌘F` to search the current folder and its accessible subfolders. Search respects hidden-item visibility and skips package contents and symlinked folders. Use **⋯** to sort by name, modification time, size, or kind. Press `⌘⇧.` to toggle hidden items, which are shown by default. Affected items animate, and files that remain visible stay selected. |
 | Hide and unhide | Select one or more files or folders, then choose **Hide Items** from the context menu or the file actions menu at the bottom. With **Show Hidden Files** on, hidden items remain visible with a badge. Press `⌘⇧.` to toggle visibility. Right-click and choose **Unhide** to clear the hidden flag. Dotfiles such as `.env` stay hidden by name until you rename them to remove the leading dot. |
 | Create a file | Right-click in the file pane, choose **New File** and a format, enter a name, and save. TXT, Markdown, RTF, CSV, JSON, and HTML are supported. The extension is added automatically and the file is created in the folder you are browsing. |
-| Select and copy | Click the first item, then Shift-click the last to select the range. Hold Shift and press ↑ or ↓ to extend or shrink the selection by one row. Command-click toggles individual items. Press `⌘C`, open the destination, then press `⌘V`. You can also paste into Finder. Use `⌥⌘C` to copy absolute paths, one per line. |
+| Select and copy | In grid view, drag from empty space to select the items inside the rectangle. Click empty space in the window to clear the selection. Click the first item, then Shift-click the last to select the range. Hold Shift and press ↑ or ↓ to extend or shrink the selection by one row. Command-click toggles individual items. Press `⌘C`, open the destination, then press `⌘V`. You can also paste into Finder. Use `⌥⌘C` to copy absolute paths, one per line. |
 | Share to another app | Select one or more files or folders, then click the toolbar share button or choose **Share…** from the context menu or **File Actions**. macOS lists sharing services that support the selection. Sharing a .filedesk file sends the encrypted file. |
 | Drag to another app | Drag files or folders from the list or grid into an app that accepts file drops. To drag a group, start on any selected item. Dragging an encrypted file shares the original encrypted file. |
-| Move and delete | Drag files or folders onto a folder in the sidebar, or right-click and choose **Move To…**. If a name already exists, check the source and destination paths, then choose **Replace** or **Skip**. Skip is the default. **Replacing a folder overwrites the destination folder and its contents.** Click a selected item again to rename it, or double-click to open it. Press `⌘⌫`, then Return to confirm or Esc to cancel. After confirming, press `⌘Z` to restore the batch. If an original path is occupied, its trashed item stays in the Trash. Press `⌘⇧N` to create a folder. |
+| Move and delete | Drag one or more selected items onto a folder in the list, grid, or sidebar, or right-click and choose **Move To…**. If a name already exists, check the source and destination paths, then choose **Replace** or **Skip**. Skip is the default. **Replacing a folder overwrites the destination folder and its contents.** Click a selected item again to rename it, or double-click to open it. Press `⌘⌫`, then Return to confirm or Esc to cancel. After confirming, press `⌘Z` to restore the batch. If an original path is occupied, its trashed item stays in the Trash. Press `⌘⇧N` to create a folder. |
 | Favorites and history | Click the star beside a folder title to toggle it as a favorite. Open the history panel from the top right to revisit paths entered with Go to Folder, or click × to remove an entry. Hover over a recent file and click × to remove its entry and keep the file. Recently opened files track renames and deletions. Switch back to FileDesktop or press `⌘R` to pick up changes from Finder. |
 | Preview, tags, and Terminal | Double-click a file to open it in the default app. Use the right panel for properties or Quick Look. Right-click a file or folder and choose **Edit Tags…** to add or remove Finder tags. The terminal button at the top right opens Terminal in the current folder. |
+| Minimize and quit | Click the main window’s red close button to minimize it to the Dock. Click FileDesktop in the Dock to restore the same folder and selection. Press `⌘Q` to quit. |
 | Open from Finder | Right-click a folder and choose **Open in FileDesktop**. It may appear in the **Services** submenu. From Terminal, run `open -b local.filedesk.app .` to open the working directory. |
 | Default apps | **FileDesktop → Set as Default Folder Browser…** asks macOS to change the folder association. macOS can protect the folder type and decline the request. The Finder service remains available. Use **⋯ → Default Apps** to associate `.filedesk` files or request that folders open in Finder again. |
 | Language and appearance | Press `⌘,` for Settings. Choose the system language, Simplified Chinese, or English, then reopen the app. Appearance can follow the system or use Light or Dark. Click the custom color swatch to open the system color picker. Accent changes apply immediately. Builds made with Xcode 26 or later use Liquid Glass on macOS 26 or later. |

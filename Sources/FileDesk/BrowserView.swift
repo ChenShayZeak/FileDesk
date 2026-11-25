@@ -153,6 +153,7 @@ struct BrowserView: View {
             browserContent(width: window.size.width)
         }
         .padding(8)
+        .background { deselectionBackground }
         .onCommand(#selector(NSText.copy(_:)), perform: copy)
         .onCommand(#selector(NSText.paste(_:)), perform: paste)
         .onChange(of: model.directory) { _, _ in filesFocused = true }
@@ -166,6 +167,8 @@ struct BrowserView: View {
             SlidingPanel(axis: .horizontal, progress: showSidebar ? 1 : 0, anchor: .topTrailing) {
                 sidebar
                     .frame(width: sidebarWidth)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: clearFileSelection)
                     .browserGlass(cornerRadius: panelCornerRadius)
                     .padding(.trailing, panelSpacing)
             }
@@ -175,6 +178,7 @@ struct BrowserView: View {
             .animation(panelAnimation, value: showSidebar)
             VStack(spacing: 0) {
                 toolbar
+                    .background { deselectionBackground }
                     .browserGlass(cornerRadius: panelCornerRadius)
                     .padding(.bottom, panelSpacing)
                 HStack(spacing: 0) {
@@ -189,6 +193,8 @@ struct BrowserView: View {
                             crypt: crypt, changePassword: changePassword
                         )
                         .frame(width: inspectorWidth)
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: clearFileSelection)
                         .browserGlass(cornerRadius: panelCornerRadius)
                         .padding(.leading, panelSpacing)
                     }
@@ -212,6 +218,7 @@ struct BrowserView: View {
                 }
                 SlidingPanel(axis: .vertical, progress: showPathHistory ? 1 : 0) {
                     pathHistory
+                        .background { deselectionBackground }
                         .browserGlass(cornerRadius: panelCornerRadius)
                         .padding(.top, panelSpacing)
                 }
@@ -233,6 +240,7 @@ struct BrowserView: View {
                         .frame(height: 33)
                     } else {
                         statusBar
+                            .background { deselectionBackground }
                     }
                 }
                 .browserGlass(cornerRadius: panelCornerRadius)
@@ -579,6 +587,15 @@ struct BrowserView: View {
                 }
             }
         }
+        .background { deselectionBackground }
+    }
+
+    private var deselectionBackground: some View {
+        Color.clear.contentShape(Rectangle()).onTapGesture(perform: clearFileSelection)
+    }
+
+    private func clearFileSelection() {
+        if !model.selection.isEmpty { model.selection = [] }
     }
 
     private var breadcrumbBar: some View {
@@ -673,8 +690,9 @@ struct BrowserView: View {
         .padding(.horizontal, 12)
     }
 
+    @ViewBuilder
     private func fileDragArea(for item: FileItem) -> some View {
-        FileDragArea(urls: { model.fileURLsForDrag(startingAt: item.url) }, mouseDown: { pendingRename = nil }) { event in
+        let area = FileDragArea(urls: { model.fileURLsForDrag(startingAt: item.url) }, mouseDown: { pendingRename = nil }) { event in
             filesFocused = true
             if event.clickCount == 2, event.modifierFlags.intersection([.shift, .command]).isEmpty {
                 model.selection = [item.id]
@@ -687,6 +705,12 @@ struct BrowserView: View {
             }
         }
         .accessibilityHidden(true)
+        if item.isFolder {
+            area.background(dropFolder == item.url ? accent.opacity(0.22) : .clear)
+                .onDrop(of: [.fileURL], delegate: FolderMoveDrop(folder: item.url, model: model, target: $dropFolder))
+        } else {
+            area
+        }
     }
 
     private func fileGrid(width: CGFloat, proxy: ScrollViewProxy) -> some View {
@@ -694,69 +718,80 @@ struct BrowserView: View {
         let padding: CGFloat = 20
         let columns = max(1, Int((width - 2 * padding + spacing) / (108 + spacing)))
         let layout = Array(repeating: GridItem(.flexible(), spacing: spacing), count: columns)
-        let grid = ScrollView {
-            LazyVGrid(columns: layout, spacing: spacing) {
-                ForEach(model.items) { item in
-                    let selected = model.selection.contains(item.id)
-                    Button {
-                        filesFocused = true
-                        model.selectItem(item.id, modifiers: NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags)
-                    } label: {
-                        VStack(spacing: 10) {
-                            Image(systemName: item.symbol)
-                                .font(.system(size: 34, weight: .light))
-                                .foregroundStyle(item.isFolder ? accent : Color.secondary)
-                                .accessibilityHidden(true)
-                            Text(item.name)
-                                .font(.system(size: 11))
-                                .lineLimit(2)
-                                .multilineTextAlignment(.center)
-                                .truncationMode(.middle)
-                            if !model.searchTerm.isEmpty { searchLocation(item) }
-                            if !item.tags.isEmpty {
-                                Text(item.tags.joined(separator: " · "))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
+        let tileHeight: CGFloat = model.searchTerm.isEmpty ? 100 : 124
+        let tiles = LazyVGrid(columns: layout, spacing: spacing) {
+            ForEach(model.items) { item in
+                let selected = model.selection.contains(item.id)
+                Button {
+                    filesFocused = true
+                    model.selectItem(item.id, modifiers: NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags)
+                } label: {
+                    VStack(spacing: 10) {
+                        Image(systemName: item.symbol)
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundStyle(item.isFolder ? accent : Color.secondary)
+                            .accessibilityHidden(true)
+                        Text(item.name)
+                            .font(.system(size: 11))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .truncationMode(.middle)
+                        if !model.searchTerm.isEmpty { searchLocation(item) }
+                        if !item.tags.isEmpty {
+                            Text(item.tags.joined(separator: " · "))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
-                        .padding(8)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: model.searchTerm.isEmpty ? 100 : 124)
-                        .background(
-                            selected ? accent.opacity(0.16) : BrowserColors.control.opacity(0.62),
-                            in: RoundedRectangle(cornerRadius: 10)
-                        )
-                        .overlay(alignment: .topTrailing) {
-                            if item.isHidden { hiddenBadge.padding(4) }
-                        }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .overlay { fileDragArea(for: item) }
-                    .contextMenu { itemActions(selected ? model.selectedItems : [item]) }
-                    .accessibilityAddTraits(selected ? .isSelected : [])
-                    .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: tileHeight)
+                    .background(
+                        selected ? accent.opacity(0.16) : BrowserColors.control.opacity(0.62),
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        if item.isHidden { hiddenBadge.padding(4) }
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .overlay { fileDragArea(for: item) }
+                .contextMenu { itemActions(selected ? model.selectedItems : [item]) }
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .help(([model.searchTerm.isEmpty ? item.name : item.url.path] + item.tags).joined(separator: " · "))
             }
-            .padding(.horizontal, padding)
-            .padding(.bottom, 16)
         }
-        .contentShape(Rectangle())
-        .contextMenu { directoryActions }
+        .padding(.horizontal, padding)
+        .padding(.bottom, 16)
 
-        return grid
-            .focusable()
-            .focusEffectDisabled()
-            .focused($filesFocused)
-            .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { key in
-                guard key.modifiers.intersection([.shift, .command, .control, .option]) == .shift,
-                      !model.selection.isEmpty else { return .ignored }
-                if let target = model.extendGridSelection(rows: key.key == .upArrow ? -1 : 1, columns: columns) {
-                    proxy.scrollTo(target)
-                }
-                return .handled
+        return GeometryReader { viewport in
+            ScrollView {
+                tiles
+                    .frame(minHeight: viewport.size.height, alignment: .top)
+                    .overlay {
+                        GridSelectionArea(items: model.items, columns: columns, tileHeight: tileHeight,
+                                          spacing: spacing, inset: padding, accent: accent, model: model) {
+                            filesFocused = true
+                        }
+                        .accessibilityHidden(true)
+                    }
             }
+            .contentShape(Rectangle())
+            .contextMenu { directoryActions }
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($filesFocused)
+        .onKeyPress(keys: [.upArrow, .downArrow], phases: [.down, .repeat]) { key in
+            guard key.modifiers.intersection([.shift, .command, .control, .option]) == .shift,
+                  !model.selection.isEmpty else { return .ignored }
+            if let target = model.extendGridSelection(rows: key.key == .upArrow ? -1 : 1, columns: columns) {
+                proxy.scrollTo(target)
+            }
+            return .handled
+        }
     }
 
     private var newFileMenu: some View {
